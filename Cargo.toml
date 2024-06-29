@@ -1,0 +1,10 @@
+[package]
+name = "iced-audio"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+iced ="0.12.1"
+fundsp = "0.18.1"
+rodio = "0.18.1"
+tokio = { version = "1.38.0", features = ["time"] }
