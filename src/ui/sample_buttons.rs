@@ -3,7 +3,7 @@ use iced::{
     Length,
 };
 
-use super::midi_player::{AudioPlayer, Message};
+use super::main_ui::{AudioPlayer, Message};
 
 impl AudioPlayer {
     pub fn create_sample_buttons(&self) -> Column<Message> {

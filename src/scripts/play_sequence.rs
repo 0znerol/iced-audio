@@ -40,7 +40,7 @@ pub fn play_sequence(
             }
 
             let elapsed = start_time.elapsed();
-            let target_time = beat_duration * (beat + 1);
+            let target_time = (beat_duration) * (beat + 1);
             if elapsed < target_time {
                 thread::sleep(target_time - elapsed);
             }

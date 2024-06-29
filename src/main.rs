@@ -1,6 +1,6 @@
 use iced::{Application, Settings};
 
-use ui::midi_player::AudioPlayer;
+use ui::main_ui::AudioPlayer;
 
 mod scripts;
 mod ui;

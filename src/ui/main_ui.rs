@@ -8,7 +8,10 @@ use std::{
 };
 
 use iced::{
-    widget::{checkbox, scrollable, slider, Button, Column, Container, Row, Text},
+    widget::{
+        checkbox, scrollable, shader::wgpu::core::validation::Interface, slider, Button, Column,
+        Container, Row, Text,
+    },
     Application, Command, Element, Length, Theme,
 };
 use rodio::OutputStream;
@@ -24,6 +27,7 @@ pub struct AudioPlayer {
     pub sequence_state: SequenceState,
     sequence_playing: Arc<AtomicBool>,
     pub selected_samples: BTreeMap<usize, String>,
+    pub current_interface: Page,
 }
 
 pub struct SequenceState {
@@ -41,6 +45,14 @@ pub enum Message {
     UpdateBeatPattern(usize, usize, bool),
     UpdateBPM(u32),
     PlayAndAddSample(String),
+    ChangeInterface(Page),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Page {
+    Sequencer,
+    SampleBrowser,
+    Settings,
 }
 
 impl Application for AudioPlayer {
@@ -61,8 +73,8 @@ impl Application for AudioPlayer {
 
         let sequence_state = SequenceState {
             play_sequence_on: false,
-            sequence_length: 8,
-            beat_pattern: vec![vec![false; 8]; selected_samples.len()],
+            sequence_length: 16,
+            beat_pattern: vec![vec![false; 16]; selected_samples.len()],
             bpm: 120,
         };
         (
@@ -73,6 +85,7 @@ impl Application for AudioPlayer {
                 sequence_state,
                 sequence_playing,
                 selected_samples,
+                current_interface: Page::Sequencer,
             },
             Command::none(),
         )
@@ -87,6 +100,9 @@ impl Application for AudioPlayer {
             // Message::PlayAudio(file_name) => {
             //     play_audio(&self.stream_handle, file_name);
             // }
+            Message::ChangeInterface(interface) => {
+                self.current_interface = interface;
+            }
             Message::ToggleSequence(on) => {
                 self.sequence_state.play_sequence_on = on;
                 self.sequence_playing.store(on, Ordering::SeqCst);
@@ -113,9 +129,9 @@ impl Application for AudioPlayer {
                 }
             }
             Message::UpdateSequenceLength(length) => {
-                self.sequence_state.sequence_length = length;
+                self.sequence_state.sequence_length = length * 2; // doubled the sequence length
                 for pattern in &mut self.sequence_state.beat_pattern {
-                    pattern.resize(length as usize, false);
+                    pattern.resize((length * 2) as usize, false); // adjusted the beat pattern
                 }
             }
             Message::UpdateBeatPattern(file_index, beat_index, checked) => {
@@ -148,15 +164,27 @@ impl Application for AudioPlayer {
 
     fn view(&self) -> Element<Message> {
         let top_bar = self.create_top_bar();
-        let sequence_view = self.create_sequence_view();
-        let sample_buttons = self.create_sample_buttons();
 
-        let all_content = Column::new()
-            .push(top_bar)
-            .push(sequence_view)
-            .push(Text::new("Sample Buttons").size(20))
-            .push(sample_buttons)
-            .spacing(20);
+        let content = match self.current_interface {
+            Page::Sequencer => {
+                let sequence_view = self.create_sequence_view();
+                let sample_buttons = self.create_sample_buttons();
+                Column::new()
+                    .push(sequence_view)
+                    .push(Text::new("Sample Buttons").size(20))
+                    .push(sample_buttons)
+            }
+            Page::SampleBrowser => {
+                // Implement sample browser view
+                Column::new().push(Text::new("TO DO"))
+            }
+            Page::Settings => {
+                // Implement settings view
+                Column::new().push(Text::new("TO DO"))
+            }
+        };
+
+        let all_content = Column::new().push(top_bar).push(content).spacing(20);
 
         scrollable(Container::new(all_content).width(Length::Fill).padding(20))
             .height(Length::Fill)
