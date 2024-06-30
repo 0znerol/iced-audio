@@ -48,6 +48,7 @@ pub enum Message {
     PlayAndAddSample(String),
     RecordPattern,
     ChangeSequenceScale(SequenceScale),
+    RemoveSample(usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,6 +103,20 @@ impl DrumMachine {
 
     pub fn update(&mut self, message: Message) -> Command<Message> {
         match message {
+            Message::RemoveSample(index) => {
+                if self.selected_samples.contains_key(&index) {
+                    self.selected_samples.remove(&index);
+                    self.sequence_state.beat_pattern.remove(index);
+                    // Reindex the remaining samples
+                    let new_samples: BTreeMap<usize, String> = self
+                        .selected_samples
+                        .iter()
+                        .enumerate()
+                        .map(|(new_index, (_, sample))| (new_index, sample.clone()))
+                        .collect();
+                    self.selected_samples = new_samples;
+                }
+            }
             Message::ChangeSequenceScale(new_sequence_size) => {
                 self.sequence_scale = new_sequence_size;
                 return Command::none();

@@ -1,6 +1,7 @@
+use iced::alignment::{self, Vertical};
 use iced::font::Style;
 use iced::futures::future::select;
-use iced::widget::{checkbox, Button, PickList};
+use iced::widget::{button, checkbox, container, Button, PickList};
 use iced::{theme, Renderer, Theme};
 use iced::{
     widget::{Checkbox, Column, Row, Text},
@@ -49,16 +50,33 @@ impl DrumMachine {
                             Message::UpdateBeatPattern(file_index, beat_index as usize, checked)
                         }))
                     });
+                let remove_button = button(
+                    Text::new("X")
+                        .size(20)
+                        .vertical_alignment(alignment::Vertical::Center),
+                )
+                .on_press(Message::RemoveSample(file_index))
+                .padding(0)
+                .width(Length::Fixed(30.0))
+                .height(Length::Fixed(30.0))
+                .style(theme::Button::Text);
+
+                let remove_button_container = container(remove_button)
+                    .width(Length::Fixed(30.0))
+                    .height(Length::Fixed(30.0))
+                    .center_y();
 
                 column.push(
                     Row::new()
                         .push(
                             Text::new(file_name.1)
                                 .size(15)
-                                .width(Length::Fixed(100.0))
-                                .height(Length::Fixed(70.0)),
+                                .width(Length::Fixed(130.0))
+                                .height(Length::Fixed(20.0)),
                         )
-                        .push(beat_row),
+                        .push(beat_row)
+                        .push(remove_button_container)
+                        .align_items(alignment::Alignment::Center),
                 )
             },
         )
