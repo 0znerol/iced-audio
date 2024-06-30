@@ -23,7 +23,7 @@ pub fn record_pattern(
     let path = Path::new("recorded_patterns").join(output_file);
     let mut writer = WavWriter::create(path, spec)?;
 
-    let beat_duration = (60.0 / bpm as f32 * spec.sample_rate as f32) as usize;
+    let beat_duration = (60.0 / bpm as f32 * spec.sample_rate as f32) as usize / 2;
     let total_samples = beat_duration * sequence_length as usize;
     let mut mixed_buffer = vec![(0i16, 0i16); total_samples];
 
@@ -36,7 +36,6 @@ pub fn record_pattern(
         let samples: Vec<i16> = source.convert_samples().collect();
         decoded_samples.insert(*index, samples);
     }
-
     // Mix samples according to the beat pattern
     for (file_index, file_pattern) in beat_pattern.iter().enumerate() {
         if let Some(samples) = decoded_samples.get(&file_index) {
@@ -44,12 +43,12 @@ pub fn record_pattern(
                 if active {
                     let start = beat * beat_duration;
                     for (i, &sample) in samples.iter().enumerate().step_by(2) {
-                        if start + i / 2 < total_samples {
-                            mixed_buffer[start + i / 2].0 =
-                                mixed_buffer[start + i / 2].0.saturating_add(sample);
+                        if start + i < total_samples {
+                            mixed_buffer[start + i].0 =
+                                mixed_buffer[start + i].0.saturating_add(sample);
                             if i + 1 < samples.len() {
-                                mixed_buffer[start + i / 2].1 =
-                                    mixed_buffer[start + i / 2].1.saturating_add(samples[i + 1]);
+                                mixed_buffer[start + i].1 =
+                                    mixed_buffer[start + i].1.saturating_add(samples[i + 1]);
                             }
                         } else {
                             break;

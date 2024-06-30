@@ -1,19 +1,34 @@
 use iced::font::Style;
-use iced::widget::{checkbox, Button};
-use iced::{theme, Theme};
+use iced::futures::future::select;
+use iced::widget::{checkbox, Button, PickList};
+use iced::{theme, Renderer, Theme};
 use iced::{
     widget::{Checkbox, Column, Row, Text},
     Background, Color, Length,
 };
 
-use crate::ui::drum_machine_page::{DrumMachine, Message};
+use crate::ui::drum_machine_page::{self, DrumMachine, Message, SequenceScale};
 
 impl DrumMachine {
     pub fn create_sequence_view(&self) -> Column<Message> {
         let record_button = Button::new(Text::new("Record")).on_press(Message::RecordPattern);
-
+        let sequence_length_pick_list: iced::widget::PickList<
+            '_,
+            SequenceScale,
+            Vec<SequenceScale>,
+            SequenceScale,
+            drum_machine_page::Message,
+            Theme,
+            Renderer,
+        > = PickList::new(
+            self.sequence_scale_options.clone(),
+            Some(self.sequence_scale),
+            Message::ChangeSequenceScale,
+        );
         self.selected_samples.iter().enumerate().fold(
-            Column::new().push(record_button),
+            Column::new()
+                .push(record_button)
+                .push(sequence_length_pick_list),
             |column, (file_index, file_name)| {
                 let beat_row =
                     (0..self.sequence_state.sequence_length).fold(Row::new(), |row, beat_index| {

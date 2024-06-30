@@ -70,7 +70,7 @@ impl Application for MainUi {
         match message {
             Message::DrumMachineMessage(msg) => self
                 .drum_machine
-                .update(msg)
+                .update(msg) // Pass current_page here
                 .map(Message::DrumMachineMessage),
             Message::ChangePage(page) => {
                 self.current_page = page;

@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeMap,
+    fmt,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -27,6 +28,8 @@ pub struct DrumMachine {
     pub sequence_state: SequenceState,
     sequence_playing: Arc<AtomicBool>,
     pub selected_samples: BTreeMap<usize, String>,
+    pub sequence_scale_options: Vec<SequenceScale>,
+    pub sequence_scale: SequenceScale,
 }
 
 pub struct SequenceState {
@@ -38,12 +41,29 @@ pub struct SequenceState {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ToggleSequence(bool),
+    ToggleDrumSequence(bool),
     UpdateSequenceLength(u32),
     UpdateBeatPattern(usize, usize, bool),
     UpdateBPM(u32),
     PlayAndAddSample(String),
     RecordPattern,
+    ChangeSequenceScale(SequenceScale),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SequenceScale {
+    OneFourth,
+    OneEighth,
+    OneSixteenth,
+}
+impl fmt::Display for SequenceScale {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            SequenceScale::OneFourth => write!(f, "1/4"),
+            SequenceScale::OneEighth => write!(f, "1/8"),
+            SequenceScale::OneSixteenth => write!(f, "1/16"),
+        }
+    }
 }
 
 impl DrumMachine {
@@ -52,6 +72,12 @@ impl DrumMachine {
         let audio_files = get_audio_files("drumKits/TR-808 Kit");
         let sequence_playing = Arc::new(AtomicBool::new(false));
         let selected_samples = BTreeMap::new();
+        let sequence_scale_options = vec![
+            SequenceScale::OneFourth,
+            SequenceScale::OneEighth,
+            SequenceScale::OneSixteenth,
+        ];
+        let sequence_scale = SequenceScale::OneFourth;
 
         let sequence_state = SequenceState {
             play_sequence_on: false,
@@ -67,6 +93,8 @@ impl DrumMachine {
                 sequence_state,
                 sequence_playing,
                 selected_samples,
+                sequence_scale_options,
+                sequence_scale,
             },
             Command::none(),
         )
@@ -74,6 +102,10 @@ impl DrumMachine {
 
     pub fn update(&mut self, message: Message) -> Command<Message> {
         match message {
+            Message::ChangeSequenceScale(new_sequence_size) => {
+                self.sequence_scale = new_sequence_size;
+                return Command::none();
+            }
             Message::RecordPattern => {
                 let output_file = format!(
                     "pattern_{}.wav",
@@ -90,7 +122,7 @@ impl DrumMachine {
                     println!("Error recording pattern: {:?}", e);
                 }
             }
-            Message::ToggleSequence(on) => {
+            Message::ToggleDrumSequence(on) => {
                 self.sequence_state.play_sequence_on = on;
                 self.sequence_playing.store(on, Ordering::SeqCst);
                 if on {
@@ -101,7 +133,12 @@ impl DrumMachine {
                     let sequence_length = self.sequence_state.sequence_length;
                     let sequence_playing = Arc::clone(&self.sequence_playing);
                     let selected_samples = self.selected_samples.clone();
-
+                    let path = "drumKits/TR-808 Kit";
+                    let beat_scale = match self.sequence_scale {
+                        SequenceScale::OneEighth => 2,
+                        SequenceScale::OneSixteenth => 4,
+                        SequenceScale::OneFourth => 1,
+                    };
                     thread::spawn(move || {
                         play_pattern(
                             stream_handle,
@@ -111,6 +148,8 @@ impl DrumMachine {
                             sequence_length,
                             sequence_playing,
                             selected_samples,
+                            &path,
+                            beat_scale,
                         );
                     });
                 }
@@ -141,7 +180,11 @@ impl DrumMachine {
                             as usize
                     ]);
                 }
-                play_audio(&self.stream_handle, sample_name.clone());
+                play_audio(
+                    &self.stream_handle,
+                    sample_name.clone(),
+                    "drumKits/TR-808 Kit",
+                );
             }
         }
         Command::none()

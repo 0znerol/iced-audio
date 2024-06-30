@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeMap,
+    path,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -20,6 +21,8 @@ pub fn play_pattern(
     sequence_length: u32,
     sequence_playing: Arc<AtomicBool>,
     selected_samples: BTreeMap<usize, String>,
+    path: &str,
+    beat_scale: u32,
 ) {
     let beat_duration = Duration::from_millis((60_000 / bpm) as u64);
 
@@ -35,12 +38,13 @@ pub fn play_pattern(
                     play_audio(
                         &stream_handle,
                         selected_samples.get(&file_index).unwrap().clone(),
+                        path,
                     );
                 }
             }
 
             let elapsed = start_time.elapsed();
-            let target_time = (beat_duration) * (beat + 1);
+            let target_time = (beat_duration / beat_scale) * (beat + 1);
             if elapsed < target_time {
                 thread::sleep(target_time - elapsed);
             }

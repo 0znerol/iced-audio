@@ -69,9 +69,16 @@ impl MainUi {
                         self.drum_machine.sequence_state.play_sequence_on,
                     )
                     .on_toggle(|value| {
-                        Message::DrumMachineMessage(drum_machine_page::Message::ToggleSequence(
-                            value,
-                        ))
+                        if self.current_page == Page::DrumMachine {
+                            Message::DrumMachineMessage(
+                                drum_machine_page::Message::ToggleDrumSequence(value),
+                            )
+                        } else {
+                            //todo: implement for other pages
+                            Message::DrumMachineMessage(
+                                drum_machine_page::Message::ToggleDrumSequence(value),
+                            )
+                        }
                     }),
                 )
                 .spacing(20),

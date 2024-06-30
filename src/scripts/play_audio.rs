@@ -2,8 +2,8 @@ use std::{fs::File, io::BufReader, path::Path, sync::Arc, thread};
 
 use rodio::{Decoder, Sink};
 
-pub fn play_audio(stream_handle: &Arc<rodio::OutputStreamHandle>, file_name: String) {
-    let path = Path::new("drumKits/TR-808 Kit").join(&file_name);
+pub fn play_audio(stream_handle: &Arc<rodio::OutputStreamHandle>, file_name: String, path: &str) {
+    let path = Path::new(path).join(&file_name);
     // Spawn a new thread for audio playback
     let output_handle = stream_handle.clone();
     thread::spawn(move || {
