@@ -3,9 +3,9 @@ use iced::{
     Length,
 };
 
-use crate::ui::main_ui::{AudioPlayer, Message};
+use crate::ui::drum_machine_page::{DrumMachine, Message};
 
-impl AudioPlayer {
+impl DrumMachine {
     pub fn create_sample_buttons(&self) -> Column<Message> {
         self.audio_files
             .chunks(4)

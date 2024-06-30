@@ -6,9 +6,9 @@ use iced::{
     Background, Color, Length,
 };
 
-use crate::ui::main_ui::{AudioPlayer, Message};
+use crate::ui::drum_machine_page::{DrumMachine, Message};
 
-impl AudioPlayer {
+impl DrumMachine {
     pub fn create_sequence_view(&self) -> Column<Message> {
         let record_button = Button::new(Text::new("Record")).on_press(Message::RecordPattern);
 

@@ -8,11 +8,8 @@ use std::{
 };
 
 use iced::{
-    widget::{
-        checkbox, scrollable, shader::wgpu::core::validation::Interface, slider, Button, Column,
-        Container, Row, Text,
-    },
-    Application, Command, Element, Length, Theme,
+    widget::{checkbox, scrollable, slider, Button, Column, Container, Row, Text},
+    Command, Element, Length,
 };
 use rodio::OutputStream;
 
@@ -21,14 +18,15 @@ use crate::scripts::{
     record_pattern::record_pattern,
 };
 
-pub struct AudioPlayer {
+use super::{MainUi, Page};
+
+pub struct DrumMachine {
     output_stream: OutputStream,
     stream_handle: Arc<rodio::OutputStreamHandle>,
     pub audio_files: Vec<String>,
     pub sequence_state: SequenceState,
     sequence_playing: Arc<AtomicBool>,
     pub selected_samples: BTreeMap<usize, String>,
-    pub current_interface: Page,
 }
 
 pub struct SequenceState {
@@ -40,34 +38,16 @@ pub struct SequenceState {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    // PlayAudio(String),
     ToggleSequence(bool),
     UpdateSequenceLength(u32),
     UpdateBeatPattern(usize, usize, bool),
     UpdateBPM(u32),
     PlayAndAddSample(String),
-    ChangeInterface(Page),
     RecordPattern,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Page {
-    Sequencer,
-    SampleBrowser,
-    Settings,
-}
-
-impl Application for AudioPlayer {
-    type Message = Message;
-    type Theme = Theme;
-    type Executor = iced::executor::Default;
-    type Flags = ();
-
-    fn theme(&self) -> Theme {
-        Theme::Dark
-    }
-
-    fn new(_flags: ()) -> (Self, Command<Message>) {
+impl DrumMachine {
+    pub fn new() -> (Self, Command<Message>) {
         let (stream, stream_handle) = OutputStream::try_default().unwrap();
         let audio_files = get_audio_files("drumKits/TR-808 Kit");
         let sequence_playing = Arc::new(AtomicBool::new(false));
@@ -80,24 +60,19 @@ impl Application for AudioPlayer {
             bpm: 120,
         };
         (
-            AudioPlayer {
+            DrumMachine {
                 output_stream: stream,
                 stream_handle: Arc::new(stream_handle),
                 audio_files,
                 sequence_state,
                 sequence_playing,
                 selected_samples,
-                current_interface: Page::Sequencer,
             },
             Command::none(),
         )
     }
 
-    fn title(&self) -> String {
-        String::from("Audio Player")
-    }
-
-    fn update(&mut self, message: Message) -> Command<Message> {
+    pub fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             Message::RecordPattern => {
                 let output_file = format!(
@@ -114,9 +89,6 @@ impl Application for AudioPlayer {
                 ) {
                     println!("Error recording pattern: {:?}", e);
                 }
-            }
-            Message::ChangeInterface(interface) => {
-                self.current_interface = interface;
             }
             Message::ToggleSequence(on) => {
                 self.sequence_state.play_sequence_on = on;
@@ -144,9 +116,9 @@ impl Application for AudioPlayer {
                 }
             }
             Message::UpdateSequenceLength(length) => {
-                self.sequence_state.sequence_length = length * 2; // doubled the sequence length
+                self.sequence_state.sequence_length = length * 2;
                 for pattern in &mut self.sequence_state.beat_pattern {
-                    pattern.resize((length * 2) as usize, false); // adjusted the beat pattern
+                    pattern.resize((length * 2) as usize, false);
                 }
             }
             Message::UpdateBeatPattern(file_index, beat_index, checked) => {
@@ -168,8 +140,6 @@ impl Application for AudioPlayer {
                         self.sequence_state.sequence_length
                             as usize
                     ]);
-                    // println!("beat patter :{:?}", self.sequence_state.beat_pattern);
-                    // println!("selected samples :{:?}", self.selected_samples);
                 }
                 play_audio(&self.stream_handle, sample_name.clone());
             }
@@ -177,31 +147,16 @@ impl Application for AudioPlayer {
         Command::none()
     }
 
-    fn view(&self) -> Element<Message> {
-        let top_bar = self.create_top_bar();
+    pub fn view(&self) -> Element<Message> {
+        let sequence_view = self.create_sequence_view();
+        let sample_buttons = self.create_sample_buttons();
 
-        let content = match self.current_interface {
-            Page::Sequencer => {
-                let sequence_view = self.create_sequence_view();
-                let sample_buttons = self.create_sample_buttons();
-                Column::new()
-                    .push(sequence_view)
-                    .push(Text::new("Sample Buttons").size(20))
-                    .push(sample_buttons)
-            }
-            Page::SampleBrowser => {
-                // Implement sample browser view
-                Column::new().push(Text::new("TO DO"))
-            }
-            Page::Settings => {
-                // Implement settings view
-                Column::new().push(Text::new("TO DO"))
-            }
-        };
+        let content = Column::new()
+            .push(sequence_view)
+            .push(Text::new("Sample Buttons").size(20))
+            .push(sample_buttons);
 
-        let all_content = Column::new().push(top_bar).push(content).spacing(20);
-
-        scrollable(Container::new(all_content).width(Length::Fill).padding(20))
+        scrollable(Container::new(content).width(Length::Fill).padding(20))
             .height(Length::Fill)
             .into()
     }
