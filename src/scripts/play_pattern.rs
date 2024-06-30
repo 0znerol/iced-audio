@@ -12,7 +12,7 @@ use tokio::time::Instant;
 
 use super::play_audio::play_audio;
 
-pub fn play_sequence(
+pub fn play_pattern(
     stream_handle: Arc<rodio::OutputStreamHandle>,
     beat_pattern: Vec<Vec<bool>>,
     audio_files: Vec<String>,

@@ -1,6 +1,6 @@
 use iced::{
     theme,
-    widget::{button, checkbox, slider, Column, Row, Text},
+    widget::{button, checkbox, slider, Button, Column, Row, Text},
     Length,
 };
 

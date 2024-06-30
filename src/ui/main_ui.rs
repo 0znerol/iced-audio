@@ -17,7 +17,8 @@ use iced::{
 use rodio::OutputStream;
 
 use crate::scripts::{
-    get_audio_files::get_audio_files, play_audio::play_audio, play_sequence::play_sequence,
+    get_audio_files::get_audio_files, play_audio::play_audio, play_pattern::play_pattern,
+    record_pattern::record_pattern,
 };
 
 pub struct AudioPlayer {
@@ -46,6 +47,7 @@ pub enum Message {
     UpdateBPM(u32),
     PlayAndAddSample(String),
     ChangeInterface(Page),
+    RecordPattern,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -97,9 +99,22 @@ impl Application for AudioPlayer {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
-            // Message::PlayAudio(file_name) => {
-            //     play_audio(&self.stream_handle, file_name);
-            // }
+            Message::RecordPattern => {
+                let output_file = format!(
+                    "pattern_{}.wav",
+                    chrono::Local::now().format("%Y%m%d_%H%M%S")
+                );
+                if let Err(e) = record_pattern(
+                    &self.sequence_state.beat_pattern,
+                    &self.audio_files,
+                    self.sequence_state.bpm,
+                    self.sequence_state.sequence_length,
+                    &self.selected_samples,
+                    &output_file,
+                ) {
+                    println!("Error recording pattern: {:?}", e);
+                }
+            }
             Message::ChangeInterface(interface) => {
                 self.current_interface = interface;
             }
@@ -116,7 +131,7 @@ impl Application for AudioPlayer {
                     let selected_samples = self.selected_samples.clone();
 
                     thread::spawn(move || {
-                        play_sequence(
+                        play_pattern(
                             stream_handle,
                             beat_pattern,
                             audio_files,
@@ -153,8 +168,8 @@ impl Application for AudioPlayer {
                         self.sequence_state.sequence_length
                             as usize
                     ]);
-                    println!("beat patter :{:?}", self.sequence_state.beat_pattern);
-                    println!("selected samples :{:?}", self.selected_samples);
+                    // println!("beat patter :{:?}", self.sequence_state.beat_pattern);
+                    // println!("selected samples :{:?}", self.selected_samples);
                 }
                 play_audio(&self.stream_handle, sample_name.clone());
             }

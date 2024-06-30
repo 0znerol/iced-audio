@@ -1,4 +1,4 @@
+pub mod arranger;
+pub mod drum_machine;
 pub mod main_ui;
-pub mod sample_buttons;
-pub mod sequence_view;
 pub mod top_bar;

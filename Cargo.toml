@@ -8,3 +8,5 @@ iced ="0.12.1"
 fundsp = "0.18.1"
 rodio = "0.18.1"
 tokio = { version = "1.38.0", features = ["time"] }
+hound = "3.5.1"
+chrono = "0.4.38"
