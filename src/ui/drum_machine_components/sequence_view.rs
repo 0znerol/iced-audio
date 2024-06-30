@@ -71,7 +71,7 @@ impl DrumMachine {
                         .push(
                             Text::new(file_name.1)
                                 .size(15)
-                                .width(Length::Fixed(130.0))
+                                .width(Length::Fixed(150.0))
                                 .height(Length::Fixed(20.0)),
                         )
                         .push(beat_row)
