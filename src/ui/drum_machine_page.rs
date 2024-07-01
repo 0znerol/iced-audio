@@ -3,7 +3,7 @@ use std::{
     fmt,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex, RwLock,
     },
     thread,
 };
@@ -25,17 +25,23 @@ pub struct DrumMachine {
     output_stream: OutputStream,
     stream_handle: Arc<rodio::OutputStreamHandle>,
     pub audio_files: Vec<String>,
-    pub sequence_state: SequenceState,
+    pub sequence_state: Arc<Mutex<SequenceState>>,
     sequence_playing: Arc<AtomicBool>,
     pub selected_samples: BTreeMap<usize, String>,
     pub sequence_scale_options: Vec<SequenceScale>,
     pub sequence_scale: SequenceScale,
+    pub playback_state: Arc<Mutex<PlaybackState>>,
+    pub beat_pattern_sender: crossbeam_channel::Sender<Vec<Vec<bool>>>,
+    pub beat_pattern_receiver: crossbeam_channel::Receiver<Vec<Vec<bool>>>,
 }
 
 pub struct SequenceState {
-    pub play_sequence_on: bool,
     pub sequence_length: u32,
     pub beat_pattern: Vec<Vec<bool>>,
+}
+
+pub struct PlaybackState {
+    pub play_sequence_on: bool,
     pub bpm: u32,
 }
 
@@ -80,18 +86,26 @@ impl DrumMachine {
         ];
         let sequence_scale = SequenceScale::OneFourth;
 
-        let sequence_state = SequenceState {
-            play_sequence_on: false,
+        let (beat_pattern_sender, beat_pattern_receiver) = crossbeam_channel::unbounded();
+
+        let sequence_state = Arc::new(Mutex::new(SequenceState {
             sequence_length: 16,
-            beat_pattern: vec![vec![false; 16]; selected_samples.len()],
+            beat_pattern: vec![vec![false; 16]; 0],
+        }));
+
+        let playback_state = Arc::new(Mutex::new(PlaybackState {
+            play_sequence_on: false,
             bpm: 120,
-        };
+        }));
         (
             DrumMachine {
                 output_stream: stream,
                 stream_handle: Arc::new(stream_handle),
                 audio_files,
                 sequence_state,
+                playback_state,
+                beat_pattern_sender,
+                beat_pattern_receiver,
                 sequence_playing,
                 selected_samples,
                 sequence_scale_options,
@@ -104,9 +118,13 @@ impl DrumMachine {
     pub fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             Message::RemoveSample(index) => {
+                let mut sequence_state = self.sequence_state.lock().unwrap();
+                let mut beat_pattern = &mut sequence_state.beat_pattern.clone();
+                drop(sequence_state);
+
                 if self.selected_samples.contains_key(&index) {
                     self.selected_samples.remove(&index);
-                    self.sequence_state.beat_pattern.remove(index);
+                    beat_pattern.remove(index);
                     // Reindex the remaining samples
                     let new_samples: BTreeMap<usize, String> = self
                         .selected_samples
@@ -122,15 +140,18 @@ impl DrumMachine {
                 return Command::none();
             }
             Message::RecordPattern => {
+                let sequence_state = self.sequence_state.lock().unwrap();
+                let playback_state = self.playback_state.lock().unwrap();
+
                 let output_file = format!(
                     "pattern_{}.wav",
                     chrono::Local::now().format("%Y%m%d_%H%M%S")
                 );
                 if let Err(e) = record_pattern(
-                    &self.sequence_state.beat_pattern,
+                    &sequence_state.beat_pattern,
                     &self.audio_files,
-                    self.sequence_state.bpm,
-                    self.sequence_state.sequence_length,
+                    playback_state.bpm,
+                    sequence_state.sequence_length,
                     &self.selected_samples,
                     &output_file,
                 ) {
@@ -138,14 +159,12 @@ impl DrumMachine {
                 }
             }
             Message::ToggleDrumSequence(on) => {
-                self.sequence_state.play_sequence_on = on;
+                self.playback_state.lock().unwrap().play_sequence_on = on;
                 self.sequence_playing.store(on, Ordering::SeqCst);
                 if on {
                     let stream_handle = Arc::clone(&self.stream_handle);
-                    let beat_pattern = self.sequence_state.beat_pattern.clone();
-                    let audio_files = self.audio_files.clone();
-                    let bpm = self.sequence_state.bpm;
-                    let sequence_length = self.sequence_state.sequence_length;
+                    let playback_state = Arc::clone(&self.playback_state);
+                    let beat_pattern_receiver = self.beat_pattern_receiver.clone();
                     let sequence_playing = Arc::clone(&self.sequence_playing);
                     let selected_samples = self.selected_samples.clone();
                     let path = "drumKits/TR-808 Kit";
@@ -154,47 +173,67 @@ impl DrumMachine {
                         SequenceScale::OneSixteenth => 4,
                         SequenceScale::OneFourth => 1,
                     };
+
+                    // Get the current beat pattern
+                    let initial_beat_pattern =
+                        self.sequence_state.lock().unwrap().beat_pattern.clone();
+
                     thread::spawn(move || {
                         play_pattern(
                             stream_handle,
-                            beat_pattern,
-                            audio_files,
-                            bpm,
-                            sequence_length,
+                            playback_state,
+                            beat_pattern_receiver,
                             sequence_playing,
                             selected_samples,
-                            &path,
+                            path,
                             beat_scale,
+                            initial_beat_pattern, // Pass the initial beat pattern
                         );
                     });
+                } else {
+                    // Ensure clean shutdown
+                    self.sequence_playing.store(false, Ordering::SeqCst);
+                    // Optionally, you can send a signal through beat_pattern_sender to wake up the receiver
+                    let _ = self.beat_pattern_sender.send(Vec::new());
                 }
             }
             Message::UpdateSequenceLength(length) => {
-                self.sequence_state.sequence_length = length * 2;
-                for pattern in &mut self.sequence_state.beat_pattern {
+                self.sequence_state.lock().unwrap().sequence_length = length * 2;
+                for pattern in &mut self.sequence_state.lock().unwrap().beat_pattern {
                     pattern.resize((length * 2) as usize, false);
                 }
             }
             Message::UpdateBeatPattern(file_index, beat_index, checked) => {
-                if file_index < self.sequence_state.beat_pattern.len()
-                    && beat_index < self.sequence_state.beat_pattern[file_index].len()
+                let mut sequence_state = self.sequence_state.lock().unwrap();
+                if file_index < sequence_state.beat_pattern.len()
+                    && beat_index < sequence_state.beat_pattern[file_index].len()
                 {
-                    self.sequence_state.beat_pattern[file_index][beat_index] = checked;
+                    sequence_state.beat_pattern[file_index][beat_index] = checked;
+                    // Send updated beat pattern to playback thread
+                    let _ = self
+                        .beat_pattern_sender
+                        .send(sequence_state.beat_pattern.clone());
                 }
             }
             Message::UpdateBPM(bpm) => {
-                self.sequence_state.bpm = bpm;
+                self.playback_state.lock().unwrap().bpm = bpm;
             }
             Message::PlayAndAddSample(sample_name) => {
+                let mut sequence_state = self.sequence_state.lock().unwrap();
+                let sequence_length = sequence_state.sequence_length as usize;
+
                 if !self.selected_samples.values().any(|v| v == &sample_name) {
                     let new_index = self.selected_samples.len();
                     self.selected_samples.insert(new_index, sample_name.clone());
-                    self.sequence_state.beat_pattern.push(vec![
-                        false;
-                        self.sequence_state.sequence_length
-                            as usize
-                    ]);
+
+                    // Initialize the new beat pattern with the correct length
+                    sequence_state
+                        .beat_pattern
+                        .push(vec![false; sequence_length]);
                 }
+
+                drop(sequence_state);
+
                 play_audio(
                     &self.stream_handle,
                     sample_name.clone(),
