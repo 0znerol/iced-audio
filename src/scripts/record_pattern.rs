@@ -14,6 +14,8 @@ pub fn record_pattern(
     sequence_length: u32,
     selected_samples: &BTreeMap<usize, HashMap<String, SampleFolder>>,
     output_file: &str,
+    root_sample_path: &str,
+    beat_scale: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let spec = WavSpec {
         channels: 2,
@@ -25,14 +27,18 @@ pub fn record_pattern(
     let path = Path::new("recorded_patterns").join(output_file);
     let mut writer = WavWriter::create(path, spec)?;
 
-    let beat_duration = (60.0 / bpm as f32 * spec.sample_rate as f32) as usize / 2;
+    let beat_duration =
+        (60.0 / bpm as f32 * spec.sample_rate as f32) as usize / beat_scale as usize;
     let total_samples = beat_duration * sequence_length as usize;
     let mut mixed_buffer = vec![(0i16, 0i16); total_samples];
 
     // Load and decode all audio samples
     let mut decoded_samples = BTreeMap::new();
-    for (index, file_name) in selected_samples.iter() {
-        let path = Path::new("drumKits/TR-808 Kit").join(file_name.keys().next().unwrap());
+    for (index, file_map) in selected_samples.iter() {
+        let sample_folder = file_map.values().next().unwrap().to_string();
+        let full_path = root_sample_path.to_string() + &sample_folder;
+
+        let path = Path::new(&full_path).join(file_map.keys().next().unwrap());
         let file = BufReader::new(File::open(path)?);
         let source = Decoder::new(file)?;
         let samples: Vec<i16> = source.convert_samples().collect();

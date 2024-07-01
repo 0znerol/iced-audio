@@ -177,7 +177,12 @@ impl DrumMachine {
             Message::RecordPattern => {
                 let sequence_state = self.sequence_state.lock().unwrap();
                 let playback_state = self.playback_state.lock().unwrap();
-
+                let path = self.root_sample_folder.clone() + "/";
+                let beat_scale = match self.sequence_scale {
+                    SequenceScale::OneEighth => 2,
+                    SequenceScale::OneSixteenth => 4,
+                    SequenceScale::OneFourth => 1,
+                };
                 let output_file = format!(
                     "pattern_{}.wav",
                     chrono::Local::now().format("%Y%m%d_%H%M%S")
@@ -189,6 +194,8 @@ impl DrumMachine {
                     sequence_state.sequence_length,
                     &self.selected_samples,
                     &output_file,
+                    &path,
+                    beat_scale,
                 ) {
                     println!("Error recording pattern: {:?}", e);
                 }
