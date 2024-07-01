@@ -8,6 +8,8 @@ pub mod settings_page;
 pub mod synth_page;
 pub mod top_bar;
 
+use std::sync::{Arc, Mutex};
+
 use drum_machine_page::DrumMachine;
 use iced::{
     widget::{Column, Text},
@@ -20,6 +22,7 @@ pub struct MainUi {
     current_page: Page,
     drum_machine: DrumMachine,
     settings_page: SettingsPage,
+    pub sequence_state: Arc<Mutex<SequenceState>>,
     synth_page: SynthPage,
     pub is_dark_theme: bool,
 }
@@ -32,12 +35,18 @@ pub enum Page {
     Settings,
 }
 
+pub struct SequenceState {
+    pub sequence_length: u32,
+    pub beat_pattern: Vec<Vec<bool>>,
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     DrumMachineMessage(drum_machine_page::Message),
     ChangePage(Page),
     ToggleTheme(bool),
     SynthPageMessage(synth_page::Message),
+    UpdateSequenceLength(u32),
 }
 
 impl Application for MainUi {
@@ -47,8 +56,14 @@ impl Application for MainUi {
     type Flags = ();
 
     fn new(_flags: ()) -> (Self, Command<Message>) {
-        let (drum_machine, drum_machine_command) = DrumMachine::new();
-        let synth_page = SynthPage::new();
+        let sequence_state = Arc::new(Mutex::new(SequenceState {
+            sequence_length: 16,
+            beat_pattern: vec![vec![false; 16]; 12],
+        }));
+
+        let (drum_machine, drum_machine_command) = DrumMachine::new(sequence_state.clone());
+        let synth_page = SynthPage::new(sequence_state.clone());
+
         (
             MainUi {
                 current_page: Page::DrumMachine,
@@ -56,6 +71,7 @@ impl Application for MainUi {
                 settings_page: SettingsPage::new(true),
                 synth_page,
                 is_dark_theme: true,
+                sequence_state,
             },
             drum_machine_command.map(Message::DrumMachineMessage),
         )
@@ -91,6 +107,13 @@ impl Application for MainUi {
                 theme_bool = !self.is_dark_theme;
                 self.settings_page.is_dark_theme = theme_bool;
                 self.is_dark_theme = theme_bool;
+                Command::none()
+            }
+            Message::UpdateSequenceLength(length) => {
+                self.sequence_state.lock().unwrap().sequence_length = length * 2;
+                for pattern in &mut self.sequence_state.lock().unwrap().beat_pattern {
+                    pattern.resize((length * 2) as usize, false);
+                }
                 Command::none()
             }
         }

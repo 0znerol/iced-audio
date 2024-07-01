@@ -19,13 +19,12 @@ use crate::scripts::{
     record_pattern::record_pattern,
 };
 
-use super::{MainUi, Page};
+use super::{MainUi, Page, SequenceState};
 
 pub struct DrumMachine {
     output_stream: OutputStream,
     stream_handle: Arc<rodio::OutputStreamHandle>,
     pub audio_files: Vec<String>,
-    pub sequence_state: Arc<Mutex<SequenceState>>,
     sequence_playing: Arc<AtomicBool>,
     pub selected_samples: BTreeMap<usize, HashMap<String, SampleFolder>>,
     pub sequence_scale_options: Vec<SequenceScale>,
@@ -37,6 +36,7 @@ pub struct DrumMachine {
     pub sample_folders_options: Vec<SampleFolder>,
     pub sample_folder: SampleFolder,
     pub add_sample_on_play: bool,
+    pub sequence_state: Arc<Mutex<SequenceState>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,11 +54,6 @@ impl fmt::Display for SampleFolder {
     }
 }
 
-pub struct SequenceState {
-    pub sequence_length: u32,
-    pub beat_pattern: Vec<Vec<bool>>,
-}
-
 pub struct PlaybackState {
     pub play_sequence_on: bool,
     pub bpm: u32,
@@ -67,7 +62,6 @@ pub struct PlaybackState {
 #[derive(Debug, Clone)]
 pub enum Message {
     ToggleDrumSequence(bool),
-    UpdateSequenceLength(u32),
     UpdateBeatPattern(usize, usize, bool),
     UpdateBPM(u32),
     PlayAndAddSample(String),
@@ -95,7 +89,7 @@ impl fmt::Display for SequenceScale {
 }
 
 impl DrumMachine {
-    pub fn new() -> (Self, Command<Message>) {
+    pub fn new(sequence_state: Arc<Mutex<SequenceState>>) -> (Self, Command<Message>) {
         let (stream, stream_handle) = OutputStream::try_default().unwrap();
         let audio_files = get_audio_files("drumKits/909");
         let sequence_playing = Arc::new(AtomicBool::new(false));
@@ -109,11 +103,6 @@ impl DrumMachine {
 
         let (beat_pattern_sender, beat_pattern_receiver) = crossbeam_channel::unbounded();
 
-        let sequence_state = Arc::new(Mutex::new(SequenceState {
-            sequence_length: 16,
-            beat_pattern: vec![vec![false; 16]; 0],
-        }));
-
         let playback_state = Arc::new(Mutex::new(PlaybackState {
             play_sequence_on: false,
             bpm: 120,
@@ -126,7 +115,6 @@ impl DrumMachine {
                 output_stream: stream,
                 stream_handle: Arc::new(stream_handle),
                 audio_files,
-                sequence_state,
                 playback_state,
                 beat_pattern_sender,
                 beat_pattern_receiver,
@@ -138,6 +126,7 @@ impl DrumMachine {
                 sample_folders_options,
                 sample_folder,
                 add_sample_on_play: false,
+                sequence_state,
             },
             Command::none(),
         )
@@ -246,12 +235,7 @@ impl DrumMachine {
                     // let _ = self.beat_pattern_sender.send(Vec::new());
                 }
             }
-            Message::UpdateSequenceLength(length) => {
-                self.sequence_state.lock().unwrap().sequence_length = length * 2;
-                for pattern in &mut self.sequence_state.lock().unwrap().beat_pattern {
-                    pattern.resize((length * 2) as usize, false);
-                }
-            }
+
             Message::UpdateBeatPattern(file_index, beat_index, checked) => {
                 let mut sequence_state = self.sequence_state.lock().unwrap();
                 if file_index < sequence_state.beat_pattern.len()

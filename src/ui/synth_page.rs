@@ -7,16 +7,18 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use super::SequenceState;
+
 pub struct SynthPage {
     sequence_state: Arc<Mutex<SequenceState>>,
     notes: Vec<String>,
     is_playing: Arc<Mutex<bool>>,
     play_sender: mpsc::Sender<bool>,
 }
-struct SequenceState {
-    sequence_length: u32,
-    note_pattern: Vec<Vec<bool>>,
-}
+// struct SequenceState {
+//     sequence_length: u32,
+//     note_pattern: Vec<Vec<bool>>,
+// }
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -27,18 +29,24 @@ pub enum Message {
 }
 
 impl SynthPage {
-    pub fn new() -> Self {
-        let notes = vec![
+    pub fn new(sequence_state: Arc<Mutex<SequenceState>>) -> Self {
+        let notes: Vec<_> = vec![
             "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
         ]
         .into_iter()
         .map(String::from)
         .collect();
 
-        let sequence_state = Arc::new(Mutex::new(SequenceState {
-            sequence_length: 16,
-            note_pattern: vec![vec![false; 16]; 12],
-        }));
+        // let sequence_state = Arc::new(Mutex::new(SequenceState {
+        //     sequence_length: main_sequence_state.lock().unwrap().sequence_length,
+        //     beat_pattern: vec![
+        //         vec![
+        //             false;
+        //             main_sequence_state.lock().unwrap().sequence_length as usize
+        //         ];
+        //         notes.clone().len()
+        //     ],
+        // }));
 
         let (play_sender, play_receiver) = mpsc::channel();
 
@@ -82,7 +90,7 @@ impl SynthPage {
         match message {
             Message::ToggleNote(note_index, beat_index, checked) => {
                 let mut sequence_state = self.sequence_state.lock().unwrap();
-                sequence_state.note_pattern[note_index][beat_index] = checked;
+                sequence_state.beat_pattern[note_index][beat_index] = checked;
                 Command::none()
             }
             Message::PlaySequence => {
@@ -125,7 +133,7 @@ impl SynthPage {
     ) {
         while *is_playing.lock().unwrap() {
             let sequence_state = sequence_state.lock().unwrap();
-            let note_pattern = sequence_state.note_pattern.clone();
+            let note_pattern = sequence_state.beat_pattern.clone();
             let sequence_length = sequence_state.sequence_length;
             drop(sequence_state);
 
@@ -146,7 +154,7 @@ impl SynthPage {
 
     pub fn view(&self) -> Element<Message> {
         let sequence_state = self.sequence_state.lock().unwrap();
-        let note_pattern = &sequence_state.note_pattern;
+        let note_pattern = &sequence_state.beat_pattern;
 
         let sequence_view =
             self.notes

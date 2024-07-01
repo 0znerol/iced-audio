@@ -56,9 +56,7 @@ impl MainUi {
             Row::new()
                 .push(Text::new(format!("Sequence Length: {}", sequence_length)))
                 .push(slider(1..=64, sequence_length, |value| {
-                    Message::DrumMachineMessage(drum_machine_page::Message::UpdateSequenceLength(
-                        value,
-                    ))
+                    Message::UpdateSequenceLength(value)
                 }))
                 .push(Text::new(format!("BPM: {}", bpm)))
                 .push(slider(60..=240, bpm, |value| {
