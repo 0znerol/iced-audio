@@ -1,9 +1,9 @@
 use iced::{
-    widget::{checkbox, Button, Column, Row, Text},
-    Length,
+    widget::{checkbox, Button, Column, PickList, Row, Text},
+    Length, Renderer, Theme,
 };
 
-use crate::ui::drum_machine_page::{DrumMachine, Message};
+use crate::ui::drum_machine_page::{self, DrumMachine, Message, SampleFolder};
 
 impl DrumMachine {
     pub fn create_sample_buttons(&self) -> Column<Message> {
