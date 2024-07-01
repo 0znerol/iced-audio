@@ -26,6 +26,7 @@ impl DrumMachine {
             Some(self.sequence_scale),
             Message::ChangeSequenceScale,
         );
+        // let current_beat_index = *self.current_beat_index.lock().unwrap();
         self.selected_samples.iter().enumerate().fold(
             Column::new()
                 .push(record_button)
@@ -41,7 +42,9 @@ impl DrumMachine {
                     return column; // Skip this iteration if beat_pattern is empty or index is out of bounds
                 }
                 let beat_row = (0..sequence_length).fold(Row::new(), |row, beat_index| {
-                    let checkbox = if beat_index == 0 || beat_index % 4 == 0 {
+                    let checkbox = if beat_index == 0 || beat_index % 4 == 0
+                    // || current_beat_index == beat_index as usize
+                    {
                         checkbox("", beat_pattern[file_index][beat_index as usize])
                             .style(theme::Checkbox::Custom(Box::new(HighlightedCheckbox)))
                     } else {
@@ -71,7 +74,7 @@ impl DrumMachine {
                 column.push(
                     Row::new()
                         .push(
-                            Text::new(file_name.1)
+                            Text::new(file_name.1.keys().next().unwrap())
                                 .size(15)
                                 .width(Length::Fixed(150.0))
                                 .height(Length::Fixed(20.0)),

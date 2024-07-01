@@ -1,11 +1,11 @@
 use crossbeam_channel::{Receiver, RecvTimeoutError};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::ui::drum_machine_page::PlaybackState;
+use crate::ui::drum_machine_page::{PlaybackState, SampleFolder};
 
 use super::play_audio::play_audio;
 
@@ -14,7 +14,7 @@ pub fn play_pattern(
     playback_state: Arc<Mutex<PlaybackState>>,
     beat_pattern_receiver: Receiver<Vec<Vec<bool>>>,
     sequence_playing: Arc<AtomicBool>,
-    selected_samples: BTreeMap<usize, String>,
+    selected_samples: BTreeMap<usize, HashMap<String, SampleFolder>>,
     path: &str,
     beat_scale: u32,
     initial_beat_pattern: Vec<Vec<bool>>,
@@ -54,9 +54,15 @@ pub fn play_pattern(
             println!("Checking file index: {}", file_index);
             if beat_index < file_pattern.len() && file_pattern[beat_index] {
                 println!("Beat active for file index: {}", file_index);
-                if let Some(sample_name) = selected_samples.get(&file_index) {
-                    println!("Playing sample: {}", sample_name);
-                    play_audio(&stream_handle, sample_name.clone(), path);
+                if let Some(sample_map) = selected_samples.get(&file_index) {
+                    println!("Playing sample: {}", sample_map.keys().next().unwrap());
+                    let sample_folder = sample_map.values().next().unwrap().to_string();
+                    let full_path = path.to_string() + &sample_folder;
+                    play_audio(
+                        &stream_handle,
+                        sample_map.keys().next().unwrap().clone(),
+                        &full_path,
+                    );
                 } else {
                     println!("No sample found for file index: {}", file_index);
                 }

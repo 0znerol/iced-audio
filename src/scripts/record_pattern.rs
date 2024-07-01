@@ -1,16 +1,18 @@
 use hound::{WavSpec, WavWriter};
 use rodio::{Decoder, Source};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
+
+use crate::ui::drum_machine_page::SampleFolder;
 
 pub fn record_pattern(
     beat_pattern: &Vec<Vec<bool>>,
     audio_files: &Vec<String>,
     bpm: u32,
     sequence_length: u32,
-    selected_samples: &BTreeMap<usize, String>,
+    selected_samples: &BTreeMap<usize, HashMap<String, SampleFolder>>,
     output_file: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let spec = WavSpec {
@@ -30,7 +32,7 @@ pub fn record_pattern(
     // Load and decode all audio samples
     let mut decoded_samples = BTreeMap::new();
     for (index, file_name) in selected_samples.iter() {
-        let path = Path::new("drumKits/TR-808 Kit").join(file_name);
+        let path = Path::new("drumKits/TR-808 Kit").join(file_name.keys().next().unwrap());
         let file = BufReader::new(File::open(path)?);
         let source = Decoder::new(file)?;
         let samples: Vec<i16> = source.convert_samples().collect();
