@@ -23,7 +23,7 @@ pub fn play_pattern(
     let mut beat_index = 0;
 
     while sequence_playing.load(Ordering::SeqCst) {
-        let start_time = Instant::now();
+        // let start_time = Instant::now();
 
         // Check for beat pattern updates with a timeout
         match beat_pattern_receiver.recv_timeout(Duration::from_millis(10)) {
@@ -33,6 +33,8 @@ pub fn play_pattern(
         }
 
         if current_beat_pattern.is_empty() {
+            println!("No pattern to play");
+
             continue; // No pattern to play
         }
 
@@ -43,10 +45,20 @@ pub fn play_pattern(
 
         let beat_start = Instant::now();
 
+        println!(
+            "Beat index: {}, Pattern length: {}",
+            beat_index,
+            current_beat_pattern.len()
+        );
         for (file_index, file_pattern) in current_beat_pattern.iter().enumerate() {
+            println!("Checking file index: {}", file_index);
             if beat_index < file_pattern.len() && file_pattern[beat_index] {
+                println!("Beat active for file index: {}", file_index);
                 if let Some(sample_name) = selected_samples.get(&file_index) {
+                    println!("Playing sample: {}", sample_name);
                     play_audio(&stream_handle, sample_name.clone(), path);
+                } else {
+                    println!("No sample found for file index: {}", file_index);
                 }
             }
         }

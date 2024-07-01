@@ -194,7 +194,7 @@ impl DrumMachine {
                     // Ensure clean shutdown
                     self.sequence_playing.store(false, Ordering::SeqCst);
                     // Optionally, you can send a signal through beat_pattern_sender to wake up the receiver
-                    let _ = self.beat_pattern_sender.send(Vec::new());
+                    // let _ = self.beat_pattern_sender.send(Vec::new());
                 }
             }
             Message::UpdateSequenceLength(length) => {
