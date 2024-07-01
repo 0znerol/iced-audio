@@ -36,6 +36,7 @@ pub struct DrumMachine {
     pub root_sample_folder: String,
     pub sample_folders_options: Vec<SampleFolder>,
     pub sample_folder: SampleFolder,
+    pub add_sample_on_play: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,6 +75,7 @@ pub enum Message {
     ChangeSequenceScale(SequenceScale),
     RemoveSample(usize),
     ChangeSampleFolder(SampleFolder),
+    ToggleAddSampleOnPlay(bool),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -135,6 +137,7 @@ impl DrumMachine {
                 root_sample_folder,
                 sample_folders_options,
                 sample_folder,
+                add_sample_on_play: false,
             },
             Command::none(),
         )
@@ -142,6 +145,9 @@ impl DrumMachine {
 
     pub fn update(&mut self, message: Message) -> Command<Message> {
         match message {
+            Message::ToggleAddSampleOnPlay(checked) => {
+                self.add_sample_on_play = checked;
+            }
             Message::ChangeSampleFolder(folder) => {
                 self.sample_folder = folder.clone();
                 self.audio_files =
@@ -262,27 +268,30 @@ impl DrumMachine {
                 self.playback_state.lock().unwrap().bpm = bpm;
             }
             Message::PlayAndAddSample(sample_name) => {
-                let mut sequence_state = self.sequence_state.lock().unwrap();
-                let sequence_length = sequence_state.sequence_length as usize;
+                if self.add_sample_on_play {
+                    let mut sequence_state = self.sequence_state.lock().unwrap();
+                    let sequence_length = sequence_state.sequence_length as usize;
 
-                if !self
-                    .selected_samples
-                    .values()
-                    .any(|v| v.keys().next().unwrap() == &sample_name)
-                {
-                    let new_index = self.selected_samples.len();
-                    let mut file_map = HashMap::new();
-                    file_map.insert(sample_name.clone(), self.sample_folder.clone());
+                    if !self
+                        .selected_samples
+                        .values()
+                        .any(|v| v.keys().next().unwrap() == &sample_name)
+                    {
+                        let new_index = self.selected_samples.len();
+                        let mut file_map = HashMap::new();
+                        file_map.insert(sample_name.clone(), self.sample_folder.clone());
 
-                    self.selected_samples.insert(new_index, file_map);
+                        self.selected_samples.insert(new_index, file_map);
 
-                    // Initialize the new beat pattern with the correct length
-                    sequence_state
-                        .beat_pattern
-                        .push(vec![false; sequence_length]);
+                        sequence_state
+                            .beat_pattern
+                            .push(vec![false; sequence_length]);
+                    }
+
+                    drop(sequence_state);
                 }
 
-                drop(sequence_state);
+                // Always play the sample
                 let path = self.root_sample_folder.clone() + "/" + &self.sample_folder.to_string();
                 play_audio(&self.stream_handle, sample_name.clone(), &path);
             }
@@ -306,11 +315,23 @@ impl DrumMachine {
             Some(self.sample_folder.clone()),
             Message::ChangeSampleFolder,
         );
+        let add_sample_checkbox: iced::widget::Checkbox<'_, Message, Theme, Renderer> = checkbox(
+            "Add sample to pattern",
+            self.add_sample_on_play,
+            // Message::ToggleAddSampleOnPlay,
+        )
+        .on_toggle(Message::ToggleAddSampleOnPlay);
 
         let content = Column::new()
             .push(sequence_view)
             .push(Text::new("Sample Buttons").size(20))
-            .push(folder_pick_list)
+            .push(
+                Row::new()
+                    .push(folder_pick_list)
+                    .push(add_sample_checkbox)
+                    .spacing(10),
+            )
+            .spacing(10)
             .push(sample_buttons);
 
         scrollable(Container::new(content).width(Length::Fill).padding(20))

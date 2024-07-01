@@ -24,6 +24,15 @@ impl MainUi {
                     }),
             )
             .push(
+                button("Synth")
+                    .on_press(Message::ChangePage(Page::Synth))
+                    .style(if self.current_page == Page::Arranger {
+                        theme::Button::Primary
+                    } else {
+                        theme::Button::Secondary
+                    }),
+            )
+            .push(
                 button("Arranger")
                     .on_press(Message::ChangePage(Page::Arranger))
                     .style(if self.current_page == Page::Arranger {

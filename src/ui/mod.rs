@@ -5,6 +5,7 @@ pub mod drum_machine_components;
 pub mod drum_machine_page;
 pub mod settings_components;
 pub mod settings_page;
+pub mod synth_page;
 pub mod top_bar;
 
 use drum_machine_page::DrumMachine;
@@ -13,17 +14,20 @@ use iced::{
     Application, Command, Element, Theme,
 };
 use settings_page::SettingsPage;
+use synth_page::SynthPage;
 
 pub struct MainUi {
     current_page: Page,
     drum_machine: DrumMachine,
     settings_page: SettingsPage,
+    synth_page: SynthPage,
     pub is_dark_theme: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Page {
     DrumMachine,
+    Synth,
     Arranger,
     Settings,
 }
@@ -33,6 +37,7 @@ pub enum Message {
     DrumMachineMessage(drum_machine_page::Message),
     ChangePage(Page),
     ToggleTheme(bool),
+    SynthPageMessage(synth_page::Message),
 }
 
 impl Application for MainUi {
@@ -43,11 +48,13 @@ impl Application for MainUi {
 
     fn new(_flags: ()) -> (Self, Command<Message>) {
         let (drum_machine, drum_machine_command) = DrumMachine::new();
+        let synth_page = SynthPage::new();
         (
             MainUi {
                 current_page: Page::DrumMachine,
                 drum_machine,
                 settings_page: SettingsPage::new(true),
+                synth_page,
                 is_dark_theme: true,
             },
             drum_machine_command.map(Message::DrumMachineMessage),
@@ -68,6 +75,10 @@ impl Application for MainUi {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
+            Message::SynthPageMessage(msg) => {
+                self.synth_page.update(msg);
+                Command::none()
+            }
             Message::DrumMachineMessage(msg) => self
                 .drum_machine
                 .update(msg) // Pass current_page here
@@ -90,6 +101,7 @@ impl Application for MainUi {
         let content = match self.current_page {
             Page::DrumMachine => self.drum_machine.view().map(Message::DrumMachineMessage),
             Page::Arranger => Text::new("Arranger page (TODO)").into(),
+            Page::Synth => self.synth_page.view().map(Message::SynthPageMessage),
             Page::Settings => self.settings_page.view(),
         };
 

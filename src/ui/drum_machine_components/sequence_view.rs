@@ -28,15 +28,18 @@ impl DrumMachine {
         );
         // let current_beat_index = *self.current_beat_index.lock().unwrap();
         self.selected_samples.iter().enumerate().fold(
-            Column::new()
-                .push(record_button)
-                .push(sequence_length_pick_list),
+            Column::new().push(
+                Row::new()
+                    .spacing(10)
+                    .push(record_button)
+                    .push(Text::new("Scale:").size(20))
+                    .push(sequence_length_pick_list),
+            ),
             |column, (file_index, file_name)| {
                 let sequence_state = self.sequence_state.lock().unwrap();
                 let beat_pattern = sequence_state.beat_pattern.clone();
                 let sequence_length = sequence_state.sequence_length;
                 drop(sequence_state);
-
                 // Add this check
                 if beat_pattern.is_empty() || file_index >= beat_pattern.len() {
                     return column; // Skip this iteration if beat_pattern is empty or index is out of bounds
