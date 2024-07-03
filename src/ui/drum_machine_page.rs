@@ -106,7 +106,7 @@ impl DrumMachine {
             SequenceScale::OneEighth,
             SequenceScale::OneSixteenth,
         ];
-        let sequence_scale = SequenceScale::OneFourth;
+        let sequence_scale = sequence_state.lock().unwrap().drum_scale; //might cause deadlock
 
         let (beat_pattern_sender, beat_pattern_receiver) = crossbeam_channel::unbounded();
 
@@ -206,7 +206,7 @@ impl DrumMachine {
                 }
             }
             Message::ChangeSequenceScale(new_sequence_size) => {
-                self.sequence_scale = new_sequence_size;
+                self.sequence_state.lock().unwrap().drum_scale = new_sequence_size;
                 return Command::none();
             }
             Message::RecordPattern => {
@@ -235,61 +235,17 @@ impl DrumMachine {
                     println!("Error recording pattern: {:?}", e);
                 }
             }
-            // Message::ToggleDrumSequence(on) => {
-            //     self.playback_state.lock().unwrap().play_sequence_on = on;
-            //     self.sequence_playing.store(on, Ordering::SeqCst);
-            //     if on {
-            //         let stream_handle = Arc::clone(&self.stream_handle);
-            //         let sequence_state = self.sequence_state.clone();
-            //         let beat_pattern_receiver = self.beat_pattern_receiver.clone();
-            //         let sequence_playing = Arc::clone(&self.sequence_playing);
-            //         let selected_samples = Arc::clone(&self.selected_samples);
-            //         let path = self.root_sample_folder.clone() + "/";
-
-            //         let beat_scale = match self.sequence_scale {
-            //             SequenceScale::OneEighth => 2,
-            //             SequenceScale::OneSixteenth => 4,
-            //             SequenceScale::OneFourth => 1,
-            //         };
-
-            //         // Get the current beat pattern
-            //         let initial_beat_pattern =
-            //             self.sequence_state.lock().unwrap().beat_pattern.clone();
-
-            //         thread::spawn(move || {
-            //             play_pattern(
-            //                 stream_handle,
-            //                 sequence_state,
-            //                 beat_pattern_receiver,
-            //                 sequence_playing,
-            //                 selected_samples,
-            //                 &path,
-            //                 beat_scale,
-            //                 initial_beat_pattern, // Pass the initial beat pattern
-            //             );
-            //         });
-            //     } else {
-            //         // Ensure clean shutdown
-            //         self.sequence_playing.store(false, Ordering::SeqCst);
-            //         // Optionally, you can send a signal through beat_pattern_sender to wake up the receiver
-            //         // let _ = self.beat_pattern_sender.send(Vec::new());
-            //     }
-            // }
             Message::UpdateBeatPattern(file_index, beat_index, checked) => {
                 let mut sequence_state = self.sequence_state.lock().unwrap();
                 if file_index < sequence_state.beat_pattern.len()
                     && beat_index < sequence_state.beat_pattern[file_index].len()
                 {
                     sequence_state.beat_pattern[file_index][beat_index] = checked;
-                    // Send updated beat pattern to playback thread
                     let _ = self
                         .beat_pattern_sender
                         .send(sequence_state.beat_pattern.clone());
                 }
             }
-            // Message::UpdateBPM(bpm) => {
-            //     self.playback_state.lock().unwrap().bpm = bpm;
-            // }
             Message::PlayAndAddSample(sample_name) => {
                 if self.add_sample_on_play {
                     let mut sequence_state = self.sequence_state.lock().unwrap();
@@ -317,12 +273,16 @@ impl DrumMachine {
                 // Play the sample (unchanged)
                 let note_duration = Duration::from_millis((60_000 / 120) as u64);
                 let path = self.root_sample_folder.clone() + "/" + &self.sample_folder.to_string();
-                play_audio(
-                    &self.stream_handle,
-                    note_duration,
-                    sample_name.clone(),
-                    &path,
-                );
+                let stream_handle = Arc::new(self.stream_handle.clone());
+                thread::spawn(move || {
+                    play_audio(&stream_handle, note_duration, sample_name.clone(), &path);
+                });
+                // play_audio(
+                //     &self.stream_handle,
+                //     note_duration,
+                //     sample_name.clone(),
+                //     &path,
+                // );
             }
         }
         Command::none()

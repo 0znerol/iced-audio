@@ -10,7 +10,7 @@ pub mod top_bar;
 
 use std::sync::{Arc, Mutex};
 
-use drum_machine_page::DrumMachine;
+use drum_machine_page::{DrumMachine, SequenceScale};
 use iced::{
     command,
     widget::{Column, Text},
@@ -41,6 +41,8 @@ pub struct SequenceState {
     pub beat_pattern: Vec<Vec<bool>>,
     pub note_pattern: Vec<Vec<bool>>,
     pub bpm: u32,
+    pub drum_scale: SequenceScale,
+    pub synth_scale: SequenceScale,
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +68,8 @@ impl Application for MainUi {
             beat_pattern: vec![vec![false; 16]; 0],
             note_pattern: vec![vec![false; 32]; 12],
             bpm: 120,
+            drum_scale: SequenceScale::OneEighth,
+            synth_scale: SequenceScale::OneFourth,
         }));
 
         let (drum_machine, drum_machine_command) = DrumMachine::new(sequence_state.clone());

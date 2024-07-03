@@ -14,7 +14,7 @@ use rodio::OutputStreamHandle;
 use crate::{
     scripts::play_audio::play_audio,
     ui::{
-        drum_machine_page::{DrumMachine, SampleFolder},
+        drum_machine_page::{DrumMachine, SampleFolder, SequenceScale},
         SequenceState,
     },
 };
@@ -32,9 +32,16 @@ impl DrumMachine {
             let beat_pattern = sequence_state.beat_pattern.clone();
             let sequence_length = sequence_state.sequence_length;
             let bpm = sequence_state.bpm;
-            drop(sequence_state);
 
-            let beat_duration = Duration::from_millis((60_000 / bpm) as u64);
+            let drum_scale = sequence_state.drum_scale;
+            drop(sequence_state);
+            let scale = match drum_scale {
+                SequenceScale::OneFourth => 1,
+                SequenceScale::OneEighth => 2,
+                SequenceScale::OneSixteenth => 4,
+                _ => 1,
+            };
+            let beat_duration = Duration::from_millis((60_000 / bpm) as u64) / scale;
 
             for beat in 0..sequence_length {
                 if !*is_playing.lock().unwrap() {

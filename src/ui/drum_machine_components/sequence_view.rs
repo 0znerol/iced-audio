@@ -26,7 +26,7 @@ impl DrumMachine {
             Renderer,
         > = PickList::new(
             self.sequence_scale_options.clone(),
-            Some(self.sequence_scale),
+            Some(self.sequence_state.lock().unwrap().drum_scale.clone()),
             Message::ChangeSequenceScale,
         );
         let play_button = if *self.is_playing.lock().unwrap() {

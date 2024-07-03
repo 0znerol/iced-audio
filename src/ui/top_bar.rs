@@ -12,6 +12,7 @@ impl MainUi {
         let sequence_length = state.sequence_length;
         let bpm = state.bpm;
         let play_sequence_on = playback_state.play_sequence_on.clone();
+        let synth_play_sequence_on = self.synth_page.is_playing.lock().unwrap().clone();
         drop(state);
         let interface_buttons = Row::new()
             .push(
@@ -61,7 +62,7 @@ impl MainUi {
                 .push(Text::new(format!("BPM: {}", bpm)))
                 .push(slider(60..=240, bpm, |value| Message::UpdateBpm(value)))
                 .push(
-                    checkbox("Play Sequence", play_sequence_on)
+                    checkbox("Play Both", play_sequence_on && synth_play_sequence_on)
                         .on_toggle(move |value| Message::StartBothSequences(value)),
                 )
                 .spacing(20),

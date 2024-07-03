@@ -14,7 +14,7 @@ use super::{
 pub struct SynthPage {
     sequence_state: Arc<Mutex<SequenceState>>,
     notes: Vec<String>,
-    is_playing: Arc<Mutex<bool>>,
+    pub is_playing: Arc<Mutex<bool>>,
     play_sender: mpsc::Sender<bool>,
     pub sequence_scale_options: Vec<SequenceScale>,
     pub sequence_scale: SequenceScale,
