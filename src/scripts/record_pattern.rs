@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 
 use crate::ui::drum_machine_page::SampleFolder;
 
@@ -12,7 +13,7 @@ pub fn record_pattern(
     audio_files: &Vec<String>,
     bpm: u32,
     sequence_length: u32,
-    selected_samples: &BTreeMap<usize, HashMap<String, SampleFolder>>,
+    selected_samples: &Arc<RwLock<BTreeMap<usize, HashMap<String, SampleFolder>>>>,
     output_file: &str,
     root_sample_path: &str,
     beat_scale: u32,
@@ -23,6 +24,7 @@ pub fn record_pattern(
         bits_per_sample: 16,
         sample_format: hound::SampleFormat::Int,
     };
+    let selected_samples = selected_samples.read().unwrap(); //might cause deadlock
 
     let path = Path::new("recorded_patterns").join(output_file);
     let mut writer = WavWriter::create(path, spec)?;

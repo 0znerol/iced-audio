@@ -136,6 +136,7 @@ impl SynthPage {
             let note_pattern = sequence_state.note_pattern.clone();
             let sequence_length = sequence_state.sequence_length;
             let bpm = sequence_state.bpm;
+
             drop(sequence_state);
 
             let beat_duration = Duration::from_millis((60_000 / bpm) as u64);
@@ -148,10 +149,13 @@ impl SynthPage {
                 for (note_index, note_row) in note_pattern.iter().enumerate() {
                     if note_row[beat as usize] {
                         let frequency = 440.0 * 2.0_f32.powf((note_index as f32 - 9.0) / 12.0);
-                        Self::play_note(frequency, note_duration, stream_handle);
+                        let stream_handle = stream_handle.clone();
+                        thread::spawn(move || {
+                            Self::play_note(frequency, note_duration, &stream_handle);
+                        });
                     }
                 }
-                thread::sleep(beat_duration - note_duration);
+                thread::sleep(note_duration);
             }
         }
     }

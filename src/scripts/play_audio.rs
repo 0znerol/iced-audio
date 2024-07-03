@@ -8,17 +8,17 @@ pub fn play_audio(
     file_name: String,
     path: &str,
 ) {
-    let path = Path::new(path).join(&file_name);
-    // Spawn a new thread for audio playback
-    let output_handle = stream_handle.clone();
-    thread::spawn(move || {
-        // Create a new sink for each playback
-        let sink = Sink::try_new(&output_handle).unwrap();
-        // Load and play the audio file
-        let file = BufReader::new(File::open(path).unwrap());
-        let source = Decoder::new(file).unwrap();
-        sink.append(source);
-        // Wait for the sound to finish playing
-        sink.sleep_until_end();
-    });
+    let path = std::path::Path::new(path).join(&file_name);
+    let file = std::fs::File::open(path).unwrap();
+    let source = rodio::Decoder::new(std::io::BufReader::new(file)).unwrap();
+
+    let sink = Sink::try_new(stream_handle).unwrap();
+    sink.append(source);
+    sink.sleep_until_end()
+    // Use a separate thread to stop the sink after the note duration
+    // let sink_handle = sink.clone();
+    // std::thread::spawn(move || {
+    //     std::thread::sleep(note_duration);
+    //     sink.stop();
+    // });
 }

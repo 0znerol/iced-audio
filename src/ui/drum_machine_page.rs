@@ -27,7 +27,7 @@ pub struct DrumMachine {
     stream_handle: Arc<rodio::OutputStreamHandle>,
     pub audio_files: Vec<String>,
     sequence_playing: Arc<AtomicBool>,
-    pub selected_samples: BTreeMap<usize, HashMap<String, SampleFolder>>,
+    pub selected_samples: Arc<RwLock<BTreeMap<usize, HashMap<String, SampleFolder>>>>,
     pub sequence_scale_options: Vec<SequenceScale>,
     pub sequence_scale: SequenceScale,
     pub playback_state: Arc<Mutex<PlaybackState>>,
@@ -94,7 +94,7 @@ impl DrumMachine {
         let (stream, stream_handle) = OutputStream::try_default().unwrap();
         let audio_files = get_audio_files("drumKits/909");
         let sequence_playing = Arc::new(AtomicBool::new(false));
-        let selected_samples = BTreeMap::new();
+        let selected_samples = Arc::new(RwLock::new(BTreeMap::new()));
         let sequence_scale_options = vec![
             SequenceScale::OneFourth,
             SequenceScale::OneEighth,
@@ -144,26 +144,19 @@ impl DrumMachine {
                     get_audio_files(&format!("{}/{}", self.root_sample_folder, folder));
             }
             Message::RemoveSample(index) => {
-                let mut sequence_state = self.sequence_state.lock().unwrap();
-                let mut beat_pattern = &mut sequence_state.beat_pattern.clone();
-                drop(sequence_state);
+                let mut selected_samples = self.selected_samples.write().unwrap();
+                if selected_samples.contains_key(&index) {
+                    selected_samples.remove(&index);
 
-                if self.selected_samples.contains_key(&index) {
-                    self.selected_samples.remove(&index);
-                    beat_pattern.remove(index);
-
-                    // let file_map = HashMap::new();
-                    // file_map.insert(sample_name, self.sample_folder.clone());
-
-                    // self.selected_samples.insert(new_index, file_map);
                     // Reindex the remaining samples
-                    let new_samples: BTreeMap<usize, HashMap<String, SampleFolder>> = self
-                        .selected_samples
-                        .values() // get the values, which are the HashMaps
-                        .cloned() // clone each HashMap
-                        .enumerate() // enumerate the cloned HashMaps
-                        .collect();
-                    self.selected_samples = new_samples;
+                    let new_samples: BTreeMap<usize, HashMap<String, SampleFolder>> =
+                        selected_samples.values().cloned().enumerate().collect();
+                    *selected_samples = new_samples;
+                }
+
+                let mut sequence_state = self.sequence_state.lock().unwrap();
+                if index < sequence_state.beat_pattern.len() {
+                    sequence_state.beat_pattern.remove(index);
                 }
             }
             Message::ChangeSequenceScale(new_sequence_size) => {
@@ -204,7 +197,7 @@ impl DrumMachine {
                     let sequence_state = self.sequence_state.clone();
                     let beat_pattern_receiver = self.beat_pattern_receiver.clone();
                     let sequence_playing = Arc::clone(&self.sequence_playing);
-                    let selected_samples = self.selected_samples.clone();
+                    let selected_samples = Arc::clone(&self.selected_samples);
                     let path = self.root_sample_folder.clone() + "/";
 
                     let beat_scale = match self.sequence_scale {
@@ -257,30 +250,27 @@ impl DrumMachine {
                     let mut sequence_state = self.sequence_state.lock().unwrap();
                     let sequence_length = sequence_state.sequence_length as usize;
 
-                    if !self
-                        .selected_samples
+                    let mut selected_samples = self.selected_samples.write().unwrap();
+                    if !selected_samples
                         .values()
                         .any(|v| v.keys().next().unwrap() == &sample_name)
                     {
-                        let new_index = self.selected_samples.len();
+                        let new_index = selected_samples.len();
                         let mut file_map = HashMap::new();
                         file_map.insert(sample_name.clone(), self.sample_folder.clone());
 
-                        self.selected_samples.insert(new_index, file_map);
+                        selected_samples.insert(new_index, file_map);
 
                         sequence_state
                             .beat_pattern
                             .push(vec![false; sequence_length]);
                     }
-
+                    drop(selected_samples);
                     drop(sequence_state);
                 }
-                let note_duration = {
-                    let beat_duration = Duration::from_millis((60_000 / 120) as u64);
-                    beat_duration // Assuming quarter notes
-                };
 
-                // Always play the sample
+                // Play the sample (unchanged)
+                let note_duration = Duration::from_millis((60_000 / 120) as u64);
                 let path = self.root_sample_folder.clone() + "/" + &self.sample_folder.to_string();
                 play_audio(
                     &self.stream_handle,
