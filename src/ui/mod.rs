@@ -43,6 +43,8 @@ pub struct SequenceState {
     pub bpm: u32,
     pub drum_scale: SequenceScale,
     pub synth_scale: SequenceScale,
+    pub drum_sequence_on: bool,
+    pub synth_sequence_on: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -70,6 +72,8 @@ impl Application for MainUi {
             bpm: 120,
             drum_scale: SequenceScale::OneEighth,
             synth_scale: SequenceScale::OneFourth,
+            drum_sequence_on: false,
+            synth_sequence_on: false,
         }));
 
         let (drum_machine, drum_machine_command) = DrumMachine::new(sequence_state.clone());
@@ -109,12 +113,18 @@ impl Application for MainUi {
                         .update(drum_machine_page::Message::PlaySequence)
                         .map(Message::DrumMachineMessage);
                     let _ = self.synth_page.update(synth_page::Message::PlaySequence);
+                    //migth cause deadlock
+                    self.sequence_state.lock().unwrap().drum_sequence_on = true;
+                    self.sequence_state.lock().unwrap().synth_sequence_on = true;
                 } else {
                     let _ = self
                         .drum_machine
                         .update(drum_machine_page::Message::StopSequence)
                         .map(Message::DrumMachineMessage);
                     let _ = self.synth_page.update(synth_page::Message::StopSequence);
+                    //migth cause deadlock
+                    self.sequence_state.lock().unwrap().drum_sequence_on = false;
+                    self.sequence_state.lock().unwrap().synth_sequence_on = false;
                 }
                 Command::none()
             }

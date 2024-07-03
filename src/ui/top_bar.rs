@@ -2,7 +2,7 @@ use super::{drum_machine_page, MainUi, Message, Page};
 use iced::{
     theme,
     widget::{button, checkbox, slider, Button, Column, Row, Text},
-    Length,
+    Length, Renderer, Theme,
 };
 
 impl MainUi {
@@ -11,8 +11,9 @@ impl MainUi {
         let playback_state = self.drum_machine.playback_state.lock().unwrap();
         let sequence_length = state.sequence_length;
         let bpm = state.bpm;
-        let play_sequence_on = playback_state.play_sequence_on.clone();
-        let synth_play_sequence_on = self.synth_page.is_playing.lock().unwrap().clone();
+        let drum_sequence_on = state.drum_sequence_on.clone();
+        let synth_sequence_on = state.synth_sequence_on.clone();
+        let synth_drum_sequence_on = self.synth_page.is_playing.lock().unwrap().clone();
         drop(state);
         let interface_buttons = Row::new()
             .push(
@@ -53,6 +54,13 @@ impl MainUi {
             )
             .spacing(10);
 
+        let is_checked = drum_sequence_on && synth_sequence_on;
+        let play_button: iced::widget::Button<'_, Message, Theme, Renderer> =
+            if drum_sequence_on && synth_drum_sequence_on {
+                Button::new(Text::new("Stop Both")).on_press(Message::StartBothSequences(false))
+            } else {
+                Button::new(Text::new("Play Both")).on_press(Message::StartBothSequences(true))
+            };
         let top_bar = Column::new().push(interface_buttons).push(
             Row::new()
                 .push(Text::new(format!("Sequence Length: {}", sequence_length)))
@@ -62,8 +70,8 @@ impl MainUi {
                 .push(Text::new(format!("BPM: {}", bpm)))
                 .push(slider(60..=240, bpm, |value| Message::UpdateBpm(value)))
                 .push(
-                    checkbox("Play Both", play_sequence_on && synth_play_sequence_on)
-                        .on_toggle(move |value| Message::StartBothSequences(value)),
+                    play_button, // checkbox("Play Both", is_checked)
+                                 //     .on_toggle(move |value| Message::StartBothSequences(value)),
                 )
                 .spacing(20),
         );
