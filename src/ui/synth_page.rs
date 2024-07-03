@@ -1,19 +1,23 @@
 use iced::{
-    widget::{Button, Checkbox, Column, Row, Text},
-    Command, Element, Length,
+    widget::{Button, Checkbox, Column, PickList, Row, Text},
+    Command, Element, Length, Renderer, Theme,
 };
 use rodio::{OutputStream, OutputStreamHandle, Sink, Source};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use super::SequenceState;
+use super::{
+    drum_machine_components::sequence_view, drum_machine_page::SequenceScale, SequenceState,
+};
 
 pub struct SynthPage {
     sequence_state: Arc<Mutex<SequenceState>>,
     notes: Vec<String>,
     is_playing: Arc<Mutex<bool>>,
     play_sender: mpsc::Sender<bool>,
+    pub sequence_scale_options: Vec<SequenceScale>,
+    pub sequence_scale: SequenceScale,
 }
 // struct SequenceState {
 //     sequence_length: u32,
@@ -26,6 +30,7 @@ pub enum Message {
     PlaySequence,
     StopSequence,
     PlaybackFinished,
+    ChangeSequenceScale(SequenceScale),
 }
 
 impl SynthPage {
@@ -53,6 +58,12 @@ impl SynthPage {
         let is_playing = Arc::new(Mutex::new(false));
         let is_playing_clone = is_playing.clone();
         let sequence_state_clone = sequence_state.clone();
+        let sequence_scale_options = vec![
+            SequenceScale::OneFourth,
+            SequenceScale::OneEighth,
+            SequenceScale::OneSixteenth,
+        ];
+        let sequence_scale = SequenceScale::OneFourth;
 
         thread::spawn(move || {
             let mut stream_option: Option<(OutputStream, OutputStreamHandle)> = None;
@@ -68,6 +79,7 @@ impl SynthPage {
                                 sequence_state_clone.clone(),
                                 is_playing_clone.clone(),
                                 stream_handle,
+                                sequence_scale,
                             );
                         }
                     } else {
@@ -83,11 +95,17 @@ impl SynthPage {
             notes,
             is_playing,
             play_sender,
+            sequence_scale_options,
+            sequence_scale,
         }
     }
 
     pub fn update(&mut self, message: Message) -> Command<Message> {
         match message {
+            Message::ChangeSequenceScale(new_sequence_size) => {
+                self.sequence_scale = new_sequence_size;
+                return Command::none();
+            }
             Message::ToggleNote(note_index, beat_index, checked) => {
                 let mut sequence_state = self.sequence_state.lock().unwrap();
                 sequence_state.note_pattern[note_index][beat_index] = checked;
@@ -130,17 +148,22 @@ impl SynthPage {
         sequence_state: Arc<Mutex<SequenceState>>,
         is_playing: Arc<Mutex<bool>>,
         stream_handle: &OutputStreamHandle,
+        sequence_scale: SequenceScale,
     ) {
         while *is_playing.lock().unwrap() {
             let sequence_state = sequence_state.lock().unwrap();
             let note_pattern = sequence_state.note_pattern.clone();
             let sequence_length = sequence_state.sequence_length;
             let bpm = sequence_state.bpm;
-
             drop(sequence_state);
+            let sequence_scale = match sequence_scale {
+                SequenceScale::OneFourth => 1,
+                SequenceScale::OneEighth => 2,
+                SequenceScale::OneSixteenth => 4,
+            };
 
             let beat_duration = Duration::from_millis((60_000 / bpm) as u64);
-            let note_duration = beat_duration / 4; // Assuming quarter notes
+            let note_duration = beat_duration / sequence_scale; // Assuming quarter notes
 
             for beat in 0..sequence_length {
                 if !*is_playing.lock().unwrap() {
@@ -163,7 +186,19 @@ impl SynthPage {
     pub fn view(&self) -> Element<Message> {
         let sequence_state = self.sequence_state.lock().unwrap();
         let note_pattern = &sequence_state.note_pattern;
-
+        let sequence_length_pick_list: iced::widget::PickList<
+            '_,
+            SequenceScale,
+            Vec<SequenceScale>,
+            SequenceScale,
+            Message,
+            Theme,
+            Renderer,
+        > = PickList::new(
+            self.sequence_scale_options.clone(),
+            Some(self.sequence_scale),
+            Message::ChangeSequenceScale,
+        );
         let sequence_view =
             self.notes
                 .iter()
@@ -196,6 +231,10 @@ impl SynthPage {
             Button::new(Text::new("Play")).on_press(Message::PlaySequence)
         };
 
-        Column::new().push(sequence_view).push(play_button).into()
+        Column::new()
+            .push(sequence_length_pick_list)
+            .push(sequence_view)
+            .push(play_button)
+            .into()
     }
 }

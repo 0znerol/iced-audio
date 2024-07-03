@@ -3,7 +3,7 @@ use std::{
     fmt,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, RwLock,
+        mpsc, Arc, Mutex, RwLock,
     },
     thread,
     time::Duration,
@@ -13,11 +13,10 @@ use iced::{
     widget::{checkbox, scrollable, slider, Button, Column, Container, PickList, Row, Text},
     Command, Element, Length, Renderer, Theme,
 };
-use rodio::OutputStream;
+use rodio::{OutputStream, OutputStreamHandle};
 
 use crate::scripts::{
-    get_audio_files::get_audio_files, play_audio::play_audio, play_pattern::play_pattern,
-    record_pattern::record_pattern,
+    get_audio_files::get_audio_files, play_audio::play_audio, record_pattern::record_pattern,
 };
 
 use super::{MainUi, Page, SequenceState};
@@ -26,7 +25,8 @@ pub struct DrumMachine {
     output_stream: OutputStream,
     stream_handle: Arc<rodio::OutputStreamHandle>,
     pub audio_files: Vec<String>,
-    sequence_playing: Arc<AtomicBool>,
+    play_sender: mpsc::Sender<bool>,
+    pub is_playing: Arc<Mutex<bool>>,
     pub selected_samples: Arc<RwLock<BTreeMap<usize, HashMap<String, SampleFolder>>>>,
     pub sequence_scale_options: Vec<SequenceScale>,
     pub sequence_scale: SequenceScale,
@@ -62,7 +62,7 @@ pub struct PlaybackState {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ToggleDrumSequence(bool),
+    // ToggleDrumSequence(bool),
     UpdateBeatPattern(usize, usize, bool),
     // UpdateBPM(u32),
     PlayAndAddSample(String),
@@ -71,6 +71,8 @@ pub enum Message {
     RemoveSample(usize),
     ChangeSampleFolder(SampleFolder),
     ToggleAddSampleOnPlay(bool),
+    PlaySequence,
+    StopSequence,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,8 +95,12 @@ impl DrumMachine {
     pub fn new(sequence_state: Arc<Mutex<SequenceState>>) -> (Self, Command<Message>) {
         let (stream, stream_handle) = OutputStream::try_default().unwrap();
         let audio_files = get_audio_files("drumKits/909");
-        let sequence_playing = Arc::new(AtomicBool::new(false));
+        let (play_sender, play_receiver) = mpsc::channel();
+        let is_playing = Arc::new(Mutex::new(false));
+        let is_playing_clone = is_playing.clone();
         let selected_samples = Arc::new(RwLock::new(BTreeMap::new()));
+        let selected_samples_clone = selected_samples.clone();
+        let sequence_state_clone = sequence_state.clone();
         let sequence_scale_options = vec![
             SequenceScale::OneFourth,
             SequenceScale::OneEighth,
@@ -106,11 +112,36 @@ impl DrumMachine {
 
         let playback_state = Arc::new(Mutex::new(PlaybackState {
             play_sequence_on: false,
-            // bpm: 120,
         }));
         let root_sample_folder = "drumKits".to_string();
+        let root_sample_folder_clone = root_sample_folder.clone();
         let sample_folders_options = vec![SampleFolder::NineONine, SampleFolder::EightOEight];
         let sample_folder = SampleFolder::NineONine;
+        thread::spawn(move || {
+            let mut stream_option: Option<(OutputStream, OutputStreamHandle)> = None;
+            loop {
+                if let Ok(should_play) = play_receiver.recv() {
+                    if should_play {
+                        *is_playing_clone.lock().unwrap() = true;
+                        if stream_option.is_none() {
+                            stream_option = OutputStream::try_default().ok();
+                        }
+                        if let Some((_, ref stream_handle)) = stream_option {
+                            Self::play_pattern(
+                                sequence_state_clone.clone(),
+                                is_playing_clone.clone(),
+                                stream_handle,
+                                selected_samples_clone.clone(),
+                                &root_sample_folder_clone,
+                            );
+                        }
+                    } else {
+                        *is_playing_clone.lock().unwrap() = false;
+                        stream_option = None;
+                    }
+                }
+            }
+        });
         (
             DrumMachine {
                 output_stream: stream,
@@ -119,7 +150,8 @@ impl DrumMachine {
                 playback_state,
                 beat_pattern_sender,
                 beat_pattern_receiver,
-                sequence_playing,
+                play_sender,
+                is_playing,
                 selected_samples,
                 sequence_scale_options,
                 sequence_scale,
@@ -135,6 +167,20 @@ impl DrumMachine {
 
     pub fn update(&mut self, message: Message) -> Command<Message> {
         match message {
+            Message::PlaySequence => {
+                let mut is_playing = self.is_playing.lock().unwrap();
+                if !*is_playing {
+                    *is_playing = true;
+                    self.play_sender.send(true).unwrap();
+                }
+                return Command::none();
+            }
+            Message::StopSequence => {
+                let mut is_playing = self.is_playing.lock().unwrap();
+                *is_playing = false;
+                self.play_sender.send(false).unwrap();
+                return Command::none();
+            }
             Message::ToggleAddSampleOnPlay(checked) => {
                 self.add_sample_on_play = checked;
             }
@@ -189,47 +235,46 @@ impl DrumMachine {
                     println!("Error recording pattern: {:?}", e);
                 }
             }
-            Message::ToggleDrumSequence(on) => {
-                self.playback_state.lock().unwrap().play_sequence_on = on;
-                self.sequence_playing.store(on, Ordering::SeqCst);
-                if on {
-                    let stream_handle = Arc::clone(&self.stream_handle);
-                    let sequence_state = self.sequence_state.clone();
-                    let beat_pattern_receiver = self.beat_pattern_receiver.clone();
-                    let sequence_playing = Arc::clone(&self.sequence_playing);
-                    let selected_samples = Arc::clone(&self.selected_samples);
-                    let path = self.root_sample_folder.clone() + "/";
+            // Message::ToggleDrumSequence(on) => {
+            //     self.playback_state.lock().unwrap().play_sequence_on = on;
+            //     self.sequence_playing.store(on, Ordering::SeqCst);
+            //     if on {
+            //         let stream_handle = Arc::clone(&self.stream_handle);
+            //         let sequence_state = self.sequence_state.clone();
+            //         let beat_pattern_receiver = self.beat_pattern_receiver.clone();
+            //         let sequence_playing = Arc::clone(&self.sequence_playing);
+            //         let selected_samples = Arc::clone(&self.selected_samples);
+            //         let path = self.root_sample_folder.clone() + "/";
 
-                    let beat_scale = match self.sequence_scale {
-                        SequenceScale::OneEighth => 2,
-                        SequenceScale::OneSixteenth => 4,
-                        SequenceScale::OneFourth => 1,
-                    };
+            //         let beat_scale = match self.sequence_scale {
+            //             SequenceScale::OneEighth => 2,
+            //             SequenceScale::OneSixteenth => 4,
+            //             SequenceScale::OneFourth => 1,
+            //         };
 
-                    // Get the current beat pattern
-                    let initial_beat_pattern =
-                        self.sequence_state.lock().unwrap().beat_pattern.clone();
+            //         // Get the current beat pattern
+            //         let initial_beat_pattern =
+            //             self.sequence_state.lock().unwrap().beat_pattern.clone();
 
-                    thread::spawn(move || {
-                        play_pattern(
-                            stream_handle,
-                            sequence_state,
-                            beat_pattern_receiver,
-                            sequence_playing,
-                            selected_samples,
-                            &path,
-                            beat_scale,
-                            initial_beat_pattern, // Pass the initial beat pattern
-                        );
-                    });
-                } else {
-                    // Ensure clean shutdown
-                    self.sequence_playing.store(false, Ordering::SeqCst);
-                    // Optionally, you can send a signal through beat_pattern_sender to wake up the receiver
-                    // let _ = self.beat_pattern_sender.send(Vec::new());
-                }
-            }
-
+            //         thread::spawn(move || {
+            //             play_pattern(
+            //                 stream_handle,
+            //                 sequence_state,
+            //                 beat_pattern_receiver,
+            //                 sequence_playing,
+            //                 selected_samples,
+            //                 &path,
+            //                 beat_scale,
+            //                 initial_beat_pattern, // Pass the initial beat pattern
+            //             );
+            //         });
+            //     } else {
+            //         // Ensure clean shutdown
+            //         self.sequence_playing.store(false, Ordering::SeqCst);
+            //         // Optionally, you can send a signal through beat_pattern_sender to wake up the receiver
+            //         // let _ = self.beat_pattern_sender.send(Vec::new());
+            //     }
+            // }
             Message::UpdateBeatPattern(file_index, beat_index, checked) => {
                 let mut sequence_state = self.sequence_state.lock().unwrap();
                 if file_index < sequence_state.beat_pattern.len()

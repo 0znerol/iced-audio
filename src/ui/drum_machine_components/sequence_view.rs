@@ -12,6 +12,9 @@ use crate::ui::drum_machine_page::{self, DrumMachine, Message, SequenceScale};
 
 impl DrumMachine {
     pub fn create_sequence_view(&self) -> Column<Message> {
+        let playback_state = self.playback_state.lock().unwrap();
+        let play_sequence_on = playback_state.play_sequence_on;
+        drop(playback_state);
         let record_button = Button::new(Text::new("Record")).on_press(Message::RecordPattern);
         let sequence_length_pick_list: iced::widget::PickList<
             '_,
@@ -26,13 +29,18 @@ impl DrumMachine {
             Some(self.sequence_scale),
             Message::ChangeSequenceScale,
         );
-
+        let play_button = if *self.is_playing.lock().unwrap() {
+            Button::new(Text::new("Stop")).on_press(Message::StopSequence)
+        } else {
+            Button::new(Text::new("Play")).on_press(Message::PlaySequence)
+        };
         let mut column = Column::new().push(
             Row::new()
                 .spacing(10)
                 .push(record_button)
                 .push(Text::new("Scale:").size(20))
-                .push(sequence_length_pick_list),
+                .push(sequence_length_pick_list)
+                .push(play_button),
         );
 
         let selected_samples = self.selected_samples.read().unwrap();

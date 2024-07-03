@@ -61,18 +61,8 @@ impl MainUi {
                 .push(Text::new(format!("BPM: {}", bpm)))
                 .push(slider(60..=240, bpm, |value| Message::UpdateBpm(value)))
                 .push(
-                    checkbox("Play Sequence", play_sequence_on).on_toggle(move |value| {
-                        if self.current_page == Page::DrumMachine {
-                            Message::DrumMachineMessage(
-                                drum_machine_page::Message::ToggleDrumSequence(value),
-                            )
-                        } else {
-                            //todo: implement for other pages
-                            Message::DrumMachineMessage(
-                                drum_machine_page::Message::ToggleDrumSequence(value),
-                            )
-                        }
-                    }),
+                    checkbox("Play Sequence", play_sequence_on)
+                        .on_toggle(move |value| Message::StartBothSequences(value)),
                 )
                 .spacing(20),
         );

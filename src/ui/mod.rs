@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex};
 
 use drum_machine_page::DrumMachine;
 use iced::{
+    command,
     widget::{Column, Text},
     Application, Command, Element, Theme,
 };
@@ -50,6 +51,7 @@ pub enum Message {
     SynthPageMessage(synth_page::Message),
     UpdateSequenceLength(u32),
     UpdateBpm(u32),
+    StartBothSequences(bool),
 }
 
 impl Application for MainUi {
@@ -96,6 +98,22 @@ impl Application for MainUi {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
+            Message::StartBothSequences(play_sequence) => {
+                if play_sequence {
+                    let _ = self
+                        .drum_machine
+                        .update(drum_machine_page::Message::PlaySequence)
+                        .map(Message::DrumMachineMessage);
+                    let _ = self.synth_page.update(synth_page::Message::PlaySequence);
+                } else {
+                    let _ = self
+                        .drum_machine
+                        .update(drum_machine_page::Message::StopSequence)
+                        .map(Message::DrumMachineMessage);
+                    let _ = self.synth_page.update(synth_page::Message::StopSequence);
+                }
+                Command::none()
+            }
             Message::UpdateBpm(bpm) => {
                 self.sequence_state.lock().unwrap().bpm = bpm;
                 Command::none()
