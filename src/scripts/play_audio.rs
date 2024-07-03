@@ -1,8 +1,13 @@
-use std::{fs::File, io::BufReader, path::Path, sync::Arc, thread};
+use std::{fs::File, io::BufReader, path::Path, sync::Arc, thread, time::Duration};
 
-use rodio::{Decoder, Sink};
+use rodio::{Decoder, Sink, Source};
 
-pub fn play_audio(stream_handle: &Arc<rodio::OutputStreamHandle>, file_name: String, path: &str) {
+pub fn play_audio(
+    stream_handle: &Arc<rodio::OutputStreamHandle>,
+    note_duration: Duration,
+    file_name: String,
+    path: &str,
+) {
     let path = Path::new(path).join(&file_name);
     // Spawn a new thread for audio playback
     let output_handle = stream_handle.clone();

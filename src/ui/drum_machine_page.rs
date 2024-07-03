@@ -6,6 +6,7 @@ use std::{
         Arc, Mutex, RwLock,
     },
     thread,
+    time::Duration,
 };
 
 use iced::{
@@ -56,14 +57,14 @@ impl fmt::Display for SampleFolder {
 
 pub struct PlaybackState {
     pub play_sequence_on: bool,
-    pub bpm: u32,
+    // pub bpm: u32,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     ToggleDrumSequence(bool),
     UpdateBeatPattern(usize, usize, bool),
-    UpdateBPM(u32),
+    // UpdateBPM(u32),
     PlayAndAddSample(String),
     RecordPattern,
     ChangeSequenceScale(SequenceScale),
@@ -105,7 +106,7 @@ impl DrumMachine {
 
         let playback_state = Arc::new(Mutex::new(PlaybackState {
             play_sequence_on: false,
-            bpm: 120,
+            // bpm: 120,
         }));
         let root_sample_folder = "drumKits".to_string();
         let sample_folders_options = vec![SampleFolder::NineONine, SampleFolder::EightOEight];
@@ -185,7 +186,7 @@ impl DrumMachine {
                 if let Err(e) = record_pattern(
                     &sequence_state.beat_pattern,
                     &self.audio_files,
-                    playback_state.bpm,
+                    self.sequence_state.lock().unwrap().bpm, //might cause freeze when recording
                     sequence_state.sequence_length,
                     &self.selected_samples,
                     &output_file,
@@ -200,7 +201,7 @@ impl DrumMachine {
                 self.sequence_playing.store(on, Ordering::SeqCst);
                 if on {
                     let stream_handle = Arc::clone(&self.stream_handle);
-                    let playback_state = Arc::clone(&self.playback_state);
+                    let sequence_state = self.sequence_state.clone();
                     let beat_pattern_receiver = self.beat_pattern_receiver.clone();
                     let sequence_playing = Arc::clone(&self.sequence_playing);
                     let selected_samples = self.selected_samples.clone();
@@ -219,7 +220,7 @@ impl DrumMachine {
                     thread::spawn(move || {
                         play_pattern(
                             stream_handle,
-                            playback_state,
+                            sequence_state,
                             beat_pattern_receiver,
                             sequence_playing,
                             selected_samples,
@@ -248,9 +249,9 @@ impl DrumMachine {
                         .send(sequence_state.beat_pattern.clone());
                 }
             }
-            Message::UpdateBPM(bpm) => {
-                self.playback_state.lock().unwrap().bpm = bpm;
-            }
+            // Message::UpdateBPM(bpm) => {
+            //     self.playback_state.lock().unwrap().bpm = bpm;
+            // }
             Message::PlayAndAddSample(sample_name) => {
                 if self.add_sample_on_play {
                     let mut sequence_state = self.sequence_state.lock().unwrap();
@@ -274,10 +275,19 @@ impl DrumMachine {
 
                     drop(sequence_state);
                 }
+                let note_duration = {
+                    let beat_duration = Duration::from_millis((60_000 / 120) as u64);
+                    beat_duration // Assuming quarter notes
+                };
 
                 // Always play the sample
                 let path = self.root_sample_folder.clone() + "/" + &self.sample_folder.to_string();
-                play_audio(&self.stream_handle, sample_name.clone(), &path);
+                play_audio(
+                    &self.stream_handle,
+                    note_duration,
+                    sample_name.clone(),
+                    &path,
+                );
             }
         }
         Command::none()

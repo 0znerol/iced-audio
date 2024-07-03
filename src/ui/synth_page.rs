@@ -39,7 +39,7 @@ impl SynthPage {
 
         // let sequence_state = Arc::new(Mutex::new(SequenceState {
         //     sequence_length: main_sequence_state.lock().unwrap().sequence_length,
-        //     beat_pattern: vec![
+        //     note_pattern: vec![
         //         vec![
         //             false;
         //             main_sequence_state.lock().unwrap().sequence_length as usize
@@ -90,7 +90,7 @@ impl SynthPage {
         match message {
             Message::ToggleNote(note_index, beat_index, checked) => {
                 let mut sequence_state = self.sequence_state.lock().unwrap();
-                sequence_state.beat_pattern[note_index][beat_index] = checked;
+                sequence_state.note_pattern[note_index][beat_index] = checked;
                 Command::none()
             }
             Message::PlaySequence => {
@@ -115,11 +115,11 @@ impl SynthPage {
         }
     }
 
-    fn play_note(frequency: f32, duration: f32, stream_handle: &OutputStreamHandle) {
+    fn play_note(frequency: f32, duration: Duration, stream_handle: &OutputStreamHandle) {
         let sink = Sink::try_new(stream_handle).unwrap();
 
         let source = rodio::source::SineWave::new(frequency)
-            .take_duration(Duration::from_secs_f32(duration))
+            .take_duration(duration)
             .amplify(0.20);
 
         sink.append(source);
@@ -133,9 +133,13 @@ impl SynthPage {
     ) {
         while *is_playing.lock().unwrap() {
             let sequence_state = sequence_state.lock().unwrap();
-            let note_pattern = sequence_state.beat_pattern.clone();
+            let note_pattern = sequence_state.note_pattern.clone();
             let sequence_length = sequence_state.sequence_length;
+            let bpm = sequence_state.bpm;
             drop(sequence_state);
+
+            let beat_duration = Duration::from_millis((60_000 / bpm) as u64);
+            let note_duration = beat_duration / 4; // Assuming quarter notes
 
             for beat in 0..sequence_length {
                 if !*is_playing.lock().unwrap() {
@@ -144,17 +148,17 @@ impl SynthPage {
                 for (note_index, note_row) in note_pattern.iter().enumerate() {
                     if note_row[beat as usize] {
                         let frequency = 440.0 * 2.0_f32.powf((note_index as f32 - 9.0) / 12.0);
-                        Self::play_note(frequency, 0.25, stream_handle);
+                        Self::play_note(frequency, note_duration, stream_handle);
                     }
                 }
-                thread::sleep(Duration::from_millis(250));
+                thread::sleep(beat_duration - note_duration);
             }
         }
     }
 
     pub fn view(&self) -> Element<Message> {
         let sequence_state = self.sequence_state.lock().unwrap();
-        let note_pattern = &sequence_state.beat_pattern;
+        let note_pattern = &sequence_state.note_pattern;
 
         let sequence_view =
             self.notes

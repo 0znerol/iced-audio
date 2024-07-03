@@ -6,12 +6,13 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::ui::drum_machine_page::{PlaybackState, SampleFolder};
+use crate::ui::SequenceState;
 
 use super::play_audio::play_audio;
 
 pub fn play_pattern(
     stream_handle: Arc<rodio::OutputStreamHandle>,
-    playback_state: Arc<Mutex<PlaybackState>>,
+    sequence_state: Arc<Mutex<SequenceState>>,
     beat_pattern_receiver: Receiver<Vec<Vec<bool>>>,
     sequence_playing: Arc<AtomicBool>,
     selected_samples: BTreeMap<usize, HashMap<String, SampleFolder>>,
@@ -38,12 +39,14 @@ pub fn play_pattern(
             continue; // No pattern to play
         }
 
-        let playback_state = playback_state.lock().unwrap();
-        let bpm = playback_state.bpm;
+        let state = sequence_state.lock().unwrap();
+        let bpm = state.bpm;
         let sequence_length = current_beat_pattern[0].len() as u32;
-        drop(playback_state); // Release the lock as soon as possible
+        drop(state); // Release the lock as soon as possible
 
         let beat_start = Instant::now();
+        let beat_duration = Duration::from_millis((60_000 / bpm) as u64) / beat_scale;
+        let note_duration = beat_duration / 4; // Assuming quarter notes
 
         println!(
             "Beat index: {}, Pattern length: {}",
@@ -60,6 +63,7 @@ pub fn play_pattern(
                     let full_path = path.to_string() + &sample_folder;
                     play_audio(
                         &stream_handle,
+                        note_duration,
                         sample_map.keys().next().unwrap().clone(),
                         &full_path,
                     );
@@ -71,7 +75,6 @@ pub fn play_pattern(
 
         beat_index = (beat_index + 1) % sequence_length as usize;
 
-        let beat_duration = Duration::from_millis((60_000 / bpm) as u64) / beat_scale;
         let elapsed = beat_start.elapsed();
         if elapsed < beat_duration {
             let sleep_duration = beat_duration - elapsed;
@@ -81,7 +84,7 @@ pub fn play_pattern(
                 if !sequence_playing.load(Ordering::SeqCst) {
                     return; // Exit immediately if playback is stopped
                 }
-                thread::sleep(Duration::from_millis(1));
+                thread::sleep(Duration::from_millis(0));
             }
         }
     }

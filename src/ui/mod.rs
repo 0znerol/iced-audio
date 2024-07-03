@@ -38,6 +38,8 @@ pub enum Page {
 pub struct SequenceState {
     pub sequence_length: u32,
     pub beat_pattern: Vec<Vec<bool>>,
+    pub note_pattern: Vec<Vec<bool>>,
+    pub bpm: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +49,7 @@ pub enum Message {
     ToggleTheme(bool),
     SynthPageMessage(synth_page::Message),
     UpdateSequenceLength(u32),
+    UpdateBpm(u32),
 }
 
 impl Application for MainUi {
@@ -58,7 +61,9 @@ impl Application for MainUi {
     fn new(_flags: ()) -> (Self, Command<Message>) {
         let sequence_state = Arc::new(Mutex::new(SequenceState {
             sequence_length: 16,
-            beat_pattern: vec![vec![false; 16]; 12],
+            beat_pattern: vec![vec![false; 16]; 0],
+            note_pattern: vec![vec![false; 32]; 12],
+            bpm: 120,
         }));
 
         let (drum_machine, drum_machine_command) = DrumMachine::new(sequence_state.clone());
@@ -91,6 +96,10 @@ impl Application for MainUi {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
+            Message::UpdateBpm(bpm) => {
+                self.sequence_state.lock().unwrap().bpm = bpm;
+                Command::none()
+            }
             Message::SynthPageMessage(msg) => {
                 self.synth_page.update(msg);
                 Command::none()
