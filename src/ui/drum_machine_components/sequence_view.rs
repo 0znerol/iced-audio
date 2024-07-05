@@ -8,7 +8,7 @@ use iced::{
     Background, Color, Length,
 };
 
-use crate::ui::drum_machine_page::{self, DrumMachine, Message, SequenceScale};
+use crate::ui::drum_machine::{self, DrumMachine, Message, SequenceScale};
 
 impl DrumMachine {
     pub fn create_sequence_view(&self) -> Column<Message> {
@@ -21,7 +21,7 @@ impl DrumMachine {
             SequenceScale,
             Vec<SequenceScale>,
             SequenceScale,
-            drum_machine_page::Message,
+            drum_machine::Message,
             Theme,
             Renderer,
         > = PickList::new(

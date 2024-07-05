@@ -1,4 +1,4 @@
-use super::{drum_machine_page, MainUi, Message, Page};
+use super::{drum_machine, MainUi, Message, Page};
 use iced::{
     theme,
     widget::{button, checkbox, slider, Button, Column, Row, Text},
@@ -13,7 +13,7 @@ impl MainUi {
         let bpm = state.bpm;
         let drum_sequence_on = state.drum_sequence_on.clone();
         let synth_sequence_on = state.synth_sequence_on.clone();
-        let synth_drum_sequence_on = self.synth_page.is_playing.lock().unwrap().clone();
+        let synth_drum_sequence_on = self.synth.is_playing.lock().unwrap().clone();
         drop(state);
         let interface_buttons = Row::new()
             .push(

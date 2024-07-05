@@ -1,30 +1,30 @@
 // mod.rs
 
 pub mod arranger;
+pub mod drum_machine;
 pub mod drum_machine_components;
-pub mod drum_machine_page;
 pub mod settings_components;
 pub mod settings_page;
-pub mod synth_page;
+pub mod synth;
 pub mod top_bar;
 
 use std::sync::{Arc, Mutex};
 
-use drum_machine_page::{DrumMachine, SequenceScale};
+use drum_machine::{DrumMachine, SequenceScale};
 use iced::{
     command,
     widget::{Column, Text},
     Application, Command, Element, Theme,
 };
 use settings_page::SettingsPage;
-use synth_page::SynthPage;
+use synth::Synth;
 
 pub struct MainUi {
     current_page: Page,
     drum_machine: DrumMachine,
     settings_page: SettingsPage,
     pub sequence_state: Arc<Mutex<SequenceState>>,
-    synth_page: SynthPage,
+    synth: Synth,
     pub is_dark_theme: bool,
 }
 
@@ -51,10 +51,10 @@ pub struct SequenceState {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    DrumMachineMessage(drum_machine_page::Message),
+    DrumMachineMessage(drum_machine::Message),
     ChangePage(Page),
     ToggleTheme(bool),
-    SynthPageMessage(synth_page::Message),
+    SynthMessage(synth::Message),
     UpdateSequenceLength(u32),
     UpdateBpm(u32),
     StartBothSequences(bool),
@@ -81,14 +81,14 @@ impl Application for MainUi {
         }));
 
         let (drum_machine, drum_machine_command) = DrumMachine::new(sequence_state.clone());
-        let synth_page = SynthPage::new(sequence_state.clone());
+        let synth = Synth::new(sequence_state.clone());
 
         (
             MainUi {
                 current_page: Page::DrumMachine,
                 drum_machine,
                 settings_page: SettingsPage::new(true),
-                synth_page,
+                synth,
                 is_dark_theme: true,
                 sequence_state,
             },
@@ -114,18 +114,18 @@ impl Application for MainUi {
                 if play_sequence {
                     let _ = self
                         .drum_machine
-                        .update(drum_machine_page::Message::PlaySequence)
+                        .update(drum_machine::Message::PlaySequence)
                         .map(Message::DrumMachineMessage);
-                    let _ = self.synth_page.update(synth_page::Message::PlaySequence);
+                    let _ = self.synth.update(synth::Message::PlaySequence);
                     //migth cause deadlock
                     self.sequence_state.lock().unwrap().drum_sequence_on = true;
                     self.sequence_state.lock().unwrap().synth_sequence_on = true;
                 } else {
                     let _ = self
                         .drum_machine
-                        .update(drum_machine_page::Message::StopSequence)
+                        .update(drum_machine::Message::StopSequence)
                         .map(Message::DrumMachineMessage);
-                    let _ = self.synth_page.update(synth_page::Message::StopSequence);
+                    let _ = self.synth.update(synth::Message::StopSequence);
                     //migth cause deadlock
                     self.sequence_state.lock().unwrap().drum_sequence_on = false;
                     self.sequence_state.lock().unwrap().synth_sequence_on = false;
@@ -136,8 +136,8 @@ impl Application for MainUi {
                 self.sequence_state.lock().unwrap().bpm = bpm;
                 Command::none()
             }
-            Message::SynthPageMessage(msg) => {
-                self.synth_page.update(msg);
+            Message::SynthMessage(msg) => {
+                self.synth.update(msg);
                 Command::none()
             }
             Message::DrumMachineMessage(msg) => self
@@ -169,7 +169,7 @@ impl Application for MainUi {
         let content = match self.current_page {
             Page::DrumMachine => self.drum_machine.view().map(Message::DrumMachineMessage),
             Page::Arranger => Text::new("Arranger page (TODO)").into(),
-            Page::Synth => self.synth_page.view().map(Message::SynthPageMessage),
+            Page::Synth => self.synth.view().map(Message::SynthMessage),
             Page::Settings => self.settings_page.view(),
         };
 

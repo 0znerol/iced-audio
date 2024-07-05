@@ -15,9 +15,7 @@ use iced::{
 };
 use rodio::{OutputStream, OutputStreamHandle};
 
-use crate::scripts::{
-    get_audio_files::get_audio_files, play_audio::play_audio, record_pattern::record_pattern,
-};
+use crate::scripts::record_pattern::record_pattern;
 
 use super::{MainUi, Page, SequenceState};
 
@@ -94,7 +92,7 @@ impl fmt::Display for SequenceScale {
 impl DrumMachine {
     pub fn new(sequence_state: Arc<Mutex<SequenceState>>) -> (Self, Command<Message>) {
         let (stream, stream_handle) = OutputStream::try_default().unwrap();
-        let audio_files = get_audio_files("drumKits/909");
+        let audio_files = Self::get_audio_files("drumKits/909");
         let (play_sender, play_receiver) = mpsc::channel();
         let is_playing = Arc::new(Mutex::new(false));
         let is_playing_clone = is_playing.clone();
@@ -187,7 +185,7 @@ impl DrumMachine {
             Message::ChangeSampleFolder(folder) => {
                 self.sample_folder = folder.clone();
                 self.audio_files =
-                    get_audio_files(&format!("{}/{}", self.root_sample_folder, folder));
+                    Self::get_audio_files(&format!("{}/{}", self.root_sample_folder, folder));
             }
             Message::RemoveSample(index) => {
                 let mut selected_samples = self.selected_samples.write().unwrap();
@@ -275,7 +273,7 @@ impl DrumMachine {
                 let path = self.root_sample_folder.clone() + "/" + &self.sample_folder.to_string();
                 let stream_handle = Arc::new(self.stream_handle.clone());
                 thread::spawn(move || {
-                    play_audio(&stream_handle, note_duration, sample_name.clone(), &path);
+                    Self::play_audio(&stream_handle, note_duration, sample_name.clone(), &path);
                 });
                 // play_audio(
                 //     &self.stream_handle,
@@ -291,37 +289,8 @@ impl DrumMachine {
     pub fn view(&self) -> Element<Message> {
         let sequence_view = self.create_sequence_view();
         let sample_buttons = self.create_sample_buttons();
-        let folder_pick_list: iced::widget::PickList<
-            '_,
-            SampleFolder,
-            Vec<SampleFolder>,
-            SampleFolder,
-            Message,
-            Theme,
-            Renderer,
-        > = PickList::new(
-            self.sample_folders_options.clone(),
-            Some(self.sample_folder.clone()),
-            Message::ChangeSampleFolder,
-        );
-        let add_sample_checkbox: iced::widget::Checkbox<'_, Message, Theme, Renderer> = checkbox(
-            "Add sample to pattern",
-            self.add_sample_on_play,
-            // Message::ToggleAddSampleOnPlay,
-        )
-        .on_toggle(Message::ToggleAddSampleOnPlay);
 
-        let content = Column::new()
-            .push(sequence_view)
-            .push(Text::new("Sample Buttons").size(20))
-            .push(
-                Row::new()
-                    .push(folder_pick_list)
-                    .push(add_sample_checkbox)
-                    .spacing(10),
-            )
-            .spacing(10)
-            .push(sample_buttons);
+        let content = Column::new().push(sequence_view).push(sample_buttons);
 
         scrollable(Container::new(content).width(Length::Fill).padding(20))
             .height(Length::Fill)

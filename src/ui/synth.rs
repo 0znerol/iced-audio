@@ -7,21 +7,15 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use super::{
-    drum_machine_components::sequence_view, drum_machine_page::SequenceScale, SequenceState,
-};
+use super::{drum_machine::SequenceScale, drum_machine_components::sequence_view, SequenceState};
 
-pub struct SynthPage {
+pub struct Synth {
     sequence_state: Arc<Mutex<SequenceState>>,
     notes: Vec<String>,
     pub is_playing: Arc<Mutex<bool>>,
     play_sender: mpsc::Sender<bool>,
     pub sequence_scale_options: Vec<SequenceScale>,
 }
-// struct SequenceState {
-//     sequence_length: u32,
-//     note_pattern: Vec<Vec<bool>>,
-// }
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -33,7 +27,7 @@ pub enum Message {
     ChangeFrequency(f32),
 }
 
-impl SynthPage {
+impl Synth {
     pub fn new(sequence_state: Arc<Mutex<SequenceState>>) -> Self {
         let notes: Vec<_> = vec![
             "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
@@ -41,17 +35,6 @@ impl SynthPage {
         .into_iter()
         .map(String::from)
         .collect();
-
-        // let sequence_state = Arc::new(Mutex::new(SequenceState {
-        //     sequence_length: main_sequence_state.lock().unwrap().sequence_length,
-        //     note_pattern: vec![
-        //         vec![
-        //             false;
-        //             main_sequence_state.lock().unwrap().sequence_length as usize
-        //         ];
-        //         notes.clone().len()
-        //     ],
-        // }));
 
         let (play_sender, play_receiver) = mpsc::channel();
 
@@ -88,7 +71,7 @@ impl SynthPage {
             }
         });
 
-        SynthPage {
+        Synth {
             sequence_state,
             notes,
             is_playing,
@@ -131,59 +114,6 @@ impl SynthPage {
                 let mut is_playing = self.is_playing.lock().unwrap();
                 *is_playing = false;
                 Command::none()
-            }
-        }
-    }
-
-    fn play_note(frequency: f32, duration: Duration, stream_handle: &OutputStreamHandle) {
-        let sink = Sink::try_new(stream_handle).unwrap();
-
-        let source = rodio::source::SineWave::new(frequency)
-            .take_duration(duration)
-            .amplify(0.20);
-
-        sink.append(source);
-        sink.sleep_until_end();
-    }
-
-    fn play_sequence(
-        sequence_state: Arc<Mutex<SequenceState>>,
-        is_playing: Arc<Mutex<bool>>,
-        stream_handle: &OutputStreamHandle,
-    ) {
-        while *is_playing.lock().unwrap() {
-            let sequence_state = sequence_state.lock().unwrap();
-            let note_pattern = sequence_state.note_pattern.clone();
-            let sequence_length = sequence_state.sequence_length;
-            let bpm = sequence_state.bpm;
-            let octave = sequence_state.octave;
-            let frequency = sequence_state.frequency;
-            let sequence_scale = match sequence_state.synth_scale {
-                SequenceScale::OneFourth => 1,
-                SequenceScale::OneEighth => 2,
-                SequenceScale::OneSixteenth => 4,
-            };
-            drop(sequence_state);
-
-            let beat_duration = Duration::from_millis((60_000 / bpm) as u64);
-            let note_duration = beat_duration / sequence_scale;
-
-            for beat in 0..sequence_length {
-                if !*is_playing.lock().unwrap() {
-                    return;
-                }
-                for (note_index, note_row) in note_pattern.iter().enumerate() {
-                    if note_row[beat as usize] {
-                        let base_frequency = frequency * 2.0_f32.powf((octave) as f32);
-                        let frequency =
-                            base_frequency * 2.0_f32.powf((note_index as f32 - 9.0) / 12.0);
-                        let stream_handle = stream_handle.clone();
-                        thread::spawn(move || {
-                            Self::play_note(frequency, note_duration, &stream_handle);
-                        });
-                    }
-                }
-                thread::sleep(note_duration);
             }
         }
     }

@@ -1,4 +1,3 @@
-pub mod get_audio_files;
-pub mod play_audio;
-pub mod play_pattern;
+pub mod drum_machine;
 pub mod record_pattern;
+pub mod synth;

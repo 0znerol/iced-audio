@@ -6,7 +6,7 @@ use std::io::BufReader;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
-use crate::ui::drum_machine_page::SampleFolder;
+use crate::ui::drum_machine::SampleFolder;
 
 pub fn record_pattern(
     beat_pattern: &Vec<Vec<bool>>,

@@ -11,12 +11,9 @@ use std::{
 use crossbeam_channel::{select, Receiver};
 use rodio::OutputStreamHandle;
 
-use crate::{
-    scripts::play_audio::play_audio,
-    ui::{
-        drum_machine_page::{DrumMachine, SampleFolder, SequenceScale},
-        SequenceState,
-    },
+use crate::ui::{
+    drum_machine::{DrumMachine, SampleFolder, SequenceScale},
+    SequenceState,
 };
 
 impl DrumMachine {
@@ -57,7 +54,12 @@ impl DrumMachine {
                             let stream_handle = Arc::new(stream_handle.clone());
 
                             thread::spawn(move || {
-                                play_audio(&stream_handle, beat_duration, sample_name, &full_path);
+                                Self::play_audio(
+                                    &stream_handle,
+                                    beat_duration,
+                                    sample_name,
+                                    &full_path,
+                                );
                             });
                         }
                     }
