@@ -17,7 +17,6 @@ pub struct SynthPage {
     pub is_playing: Arc<Mutex<bool>>,
     play_sender: mpsc::Sender<bool>,
     pub sequence_scale_options: Vec<SequenceScale>,
-    pub sequence_scale: SequenceScale,
 }
 // struct SequenceState {
 //     sequence_length: u32,
@@ -31,6 +30,7 @@ pub enum Message {
     StopSequence,
     PlaybackFinished,
     ChangeSequenceScale(SequenceScale),
+    ChangeFrequency(f32),
 }
 
 impl SynthPage {
@@ -63,7 +63,6 @@ impl SynthPage {
             SequenceScale::OneEighth,
             SequenceScale::OneSixteenth,
         ];
-        let sequence_scale = SequenceScale::OneFourth;
 
         thread::spawn(move || {
             let mut stream_option: Option<(OutputStream, OutputStreamHandle)> = None;
@@ -79,7 +78,6 @@ impl SynthPage {
                                 sequence_state_clone.clone(),
                                 is_playing_clone.clone(),
                                 stream_handle,
-                                sequence_scale,
                             );
                         }
                     } else {
@@ -96,14 +94,18 @@ impl SynthPage {
             is_playing,
             play_sender,
             sequence_scale_options,
-            sequence_scale,
         }
     }
 
     pub fn update(&mut self, message: Message) -> Command<Message> {
         match message {
+            Message::ChangeFrequency(frequency) => {
+                let mut sequence_state = self.sequence_state.lock().unwrap();
+                sequence_state.frequency = frequency;
+                return Command::none();
+            }
             Message::ChangeSequenceScale(new_sequence_size) => {
-                self.sequence_scale = new_sequence_size;
+                self.sequence_state.lock().unwrap().synth_scale = new_sequence_size;
                 return Command::none();
             }
             Message::ToggleNote(note_index, beat_index, checked) => {
@@ -148,22 +150,23 @@ impl SynthPage {
         sequence_state: Arc<Mutex<SequenceState>>,
         is_playing: Arc<Mutex<bool>>,
         stream_handle: &OutputStreamHandle,
-        sequence_scale: SequenceScale,
     ) {
         while *is_playing.lock().unwrap() {
             let sequence_state = sequence_state.lock().unwrap();
             let note_pattern = sequence_state.note_pattern.clone();
             let sequence_length = sequence_state.sequence_length;
             let bpm = sequence_state.bpm;
-            drop(sequence_state);
-            let sequence_scale = match sequence_scale {
+            let octave = sequence_state.octave;
+            let frequency = sequence_state.frequency;
+            let sequence_scale = match sequence_state.synth_scale {
                 SequenceScale::OneFourth => 1,
                 SequenceScale::OneEighth => 2,
                 SequenceScale::OneSixteenth => 4,
             };
+            drop(sequence_state);
 
             let beat_duration = Duration::from_millis((60_000 / bpm) as u64);
-            let note_duration = beat_duration / sequence_scale; // Assuming quarter notes
+            let note_duration = beat_duration / sequence_scale;
 
             for beat in 0..sequence_length {
                 if !*is_playing.lock().unwrap() {
@@ -171,7 +174,9 @@ impl SynthPage {
                 }
                 for (note_index, note_row) in note_pattern.iter().enumerate() {
                     if note_row[beat as usize] {
-                        let frequency = 440.0 * 2.0_f32.powf((note_index as f32 - 9.0) / 12.0);
+                        let base_frequency = frequency * 2.0_f32.powf((octave) as f32);
+                        let frequency =
+                            base_frequency * 2.0_f32.powf((note_index as f32 - 9.0) / 12.0);
                         let stream_handle = stream_handle.clone();
                         thread::spawn(move || {
                             Self::play_note(frequency, note_duration, &stream_handle);
@@ -196,7 +201,7 @@ impl SynthPage {
             Renderer,
         > = PickList::new(
             self.sequence_scale_options.clone(),
-            Some(self.sequence_scale),
+            Some(sequence_state.synth_scale.clone()),
             Message::ChangeSequenceScale,
         );
         let sequence_view =
@@ -231,10 +236,24 @@ impl SynthPage {
             Button::new(Text::new("Play")).on_press(Message::PlaySequence)
         };
 
+        let frequency_slider: iced::widget::Slider<'_, f32, Message, Theme> =
+            iced::widget::Slider::new(
+                100.0..=1000.0,
+                sequence_state.frequency,
+                Message::ChangeFrequency,
+            );
+
         Column::new()
-            .push(sequence_length_pick_list)
+            .push(Row::new().push(sequence_length_pick_list).push(play_button))
             .push(sequence_view)
-            .push(play_button)
+            .push(
+                Row::new()
+                    .push(Text::new("frequency: "))
+                    .push(frequency_slider)
+                    .width(Length::Fixed(500.0))
+                    .push(Text::new(format!("{:.2}", sequence_state.frequency)))
+                    .spacing(20),
+            )
             .into()
     }
 }

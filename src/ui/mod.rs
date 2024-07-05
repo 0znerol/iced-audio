@@ -45,6 +45,8 @@ pub struct SequenceState {
     pub synth_scale: SequenceScale,
     pub drum_sequence_on: bool,
     pub synth_sequence_on: bool,
+    pub octave: u32,
+    pub frequency: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -74,6 +76,8 @@ impl Application for MainUi {
             synth_scale: SequenceScale::OneFourth,
             drum_sequence_on: false,
             synth_sequence_on: false,
+            octave: 0,
+            frequency: 440.0,
         }));
 
         let (drum_machine, drum_machine_command) = DrumMachine::new(sequence_state.clone());
