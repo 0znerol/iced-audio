@@ -10,7 +10,8 @@ impl Synth {
 
         let source = rodio::source::SineWave::new(frequency)
             .take_duration(duration)
-            .amplify(0.20);
+            .amplify(0.20)
+            .fade_in(duration / 4);
 
         sink.append(source);
         sink.sleep_until_end();

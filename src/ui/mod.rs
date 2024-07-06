@@ -6,6 +6,7 @@ pub mod drum_machine_components;
 pub mod settings_components;
 pub mod settings_page;
 pub mod synth;
+pub mod synth_components;
 pub mod top_bar;
 
 use std::sync::{Arc, Mutex};
@@ -72,7 +73,7 @@ impl Application for MainUi {
             beat_pattern: vec![vec![false; 16]; 0],
             note_pattern: vec![vec![false; 32]; 12],
             bpm: 120,
-            drum_scale: SequenceScale::OneEighth,
+            drum_scale: SequenceScale::OneFourth,
             synth_scale: SequenceScale::OneFourth,
             drum_sequence_on: false,
             synth_sequence_on: false,

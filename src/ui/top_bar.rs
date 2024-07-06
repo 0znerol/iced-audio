@@ -28,7 +28,7 @@ impl MainUi {
             .push(
                 button("Synth")
                     .on_press(Message::ChangePage(Page::Synth))
-                    .style(if self.current_page == Page::Arranger {
+                    .style(if self.current_page == Page::Synth {
                         theme::Button::Primary
                     } else {
                         theme::Button::Secondary

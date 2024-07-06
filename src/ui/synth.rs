@@ -11,7 +11,7 @@ use super::{drum_machine::SequenceScale, drum_machine_components::sequence_view,
 
 pub struct Synth {
     sequence_state: Arc<Mutex<SequenceState>>,
-    notes: Vec<String>,
+    pub notes: Vec<String>,
     pub is_playing: Arc<Mutex<bool>>,
     play_sender: mpsc::Sender<bool>,
     pub sequence_scale_options: Vec<SequenceScale>,
@@ -120,7 +120,6 @@ impl Synth {
 
     pub fn view(&self) -> Element<Message> {
         let sequence_state = self.sequence_state.lock().unwrap();
-        let note_pattern = &sequence_state.note_pattern;
         let sequence_length_pick_list: iced::widget::PickList<
             '_,
             SequenceScale,
@@ -134,37 +133,6 @@ impl Synth {
             Some(sequence_state.synth_scale.clone()),
             Message::ChangeSequenceScale,
         );
-        let sequence_view =
-            self.notes
-                .iter()
-                .enumerate()
-                .fold(Column::new(), |column, (note_index, note_name)| {
-                    let beat_row =
-                        (0..sequence_state.sequence_length).fold(Row::new(), |row, beat_index| {
-                            row.push(
-                                Checkbox::new("", note_pattern[note_index][beat_index as usize])
-                                    .on_toggle(move |checked| {
-                                        Message::ToggleNote(
-                                            note_index,
-                                            beat_index as usize,
-                                            checked,
-                                        )
-                                    }),
-                            )
-                        });
-
-                    column.push(
-                        Row::new()
-                            .push(Text::new(note_name).width(Length::Fixed(30.0)))
-                            .push(beat_row),
-                    )
-                });
-
-        let play_button = if *self.is_playing.lock().unwrap() {
-            Button::new(Text::new("Stop")).on_press(Message::StopSequence)
-        } else {
-            Button::new(Text::new("Play")).on_press(Message::PlaySequence)
-        };
 
         let frequency_slider: iced::widget::Slider<'_, f32, Message, Theme> =
             iced::widget::Slider::new(
@@ -172,6 +140,13 @@ impl Synth {
                 sequence_state.frequency,
                 Message::ChangeFrequency,
             );
+        let play_button = if *self.is_playing.lock().unwrap() {
+            Button::new(Text::new("Stop")).on_press(Message::StopSequence)
+        } else {
+            Button::new(Text::new("Play")).on_press(Message::PlaySequence)
+        };
+
+        let sequence_view = Self::create_synth_sequence(&self, &sequence_state);
 
         Column::new()
             .push(Row::new().push(sequence_length_pick_list).push(play_button))
